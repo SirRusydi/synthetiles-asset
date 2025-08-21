@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synthetiles - Organic Chemistry Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden; /* Prevent scrolling */
+        }
+        .tile {
+            width: 60px;
+            height: 60px;
+            border: 1px solid #9CA3AF;
+            background-color: #F3F4F6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            position: relative;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .tile .score {
+            position: absolute;
+            bottom: 2px;
+            right: 4px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .tile.selected {
+            border-color: #3B82F6;
+            transform: scale(1.1);
+            box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4);
+        }
+        .tile.swap-selected {
+            border: 2px solid #F59E0B;
+            box-shadow: 0 0 10px #F59E0B;
+        }
+        /* Tooltip for tile name */
+        .tile .tile-name {
+            position: absolute;
+            bottom: 105%; /* Position it just above the tile */
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #1F2937; /* dark gray */
+            color: white;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+            z-index: 10;
+            pointer-events: none; /* So it doesn't interfere with clicks on the tile */
+        }
+
+        .tile:hover .tile-name {
+            visibility: visible;
+            opacity: 1;
+        }
+        .board-cell {
+            width: 65px;
+            height: 65px;
+            border: 1px dashed #D1D5DB;
+            background-color: #fff;
+            border-radius: 8px;
+        }
+        .board-cell.center::before {
+            content: '★';
+            font-size: 24px;
+            color: #FBBF24;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .player-hand .tile {
+            margin: 0 4px;
+        }
+        #game-board-container {
+            display: grid;
+            grid-template-columns: repeat(15, 65px);
+            grid-template-rows: repeat(15, 65px);
+            gap: 2px;
+        }
+        /* Custom modal styles */
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        .modal-backdrop.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            max-width: 90%;
+            width: 500px;
+            transform: scale(0.95);
+            transition: transform 0.3s ease;
+        }
+        .modal-backdrop.visible .modal-content {
+            transform: scale(1);
+        }
+
+        /* Animations */
+        @keyframes pop-in {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .tile-placed {
+            animation: pop-in 0.3s ease-out;
+        }
+        
+        @keyframes slide-down-fade-in {
+            0% { opacity: 0; transform: translateY(-20px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        .turn-change-animation {
+            animation: slide-down-fade-in 0.5s ease-out;
+        }
+
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 flex items-center justify-center h-screen">
+
+    <!-- Lobby Screen -->
+    <div id="lobby" class="text-center bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
+        <h1 class="text-4xl font-bold text-blue-600 mb-2">Synthetiles</h1>
+        <p class="text-gray-600 mb-6">The Organic Chemistry Tile Game</p>
+        <div class="space-y-4">
+            <input type="text" id="username-input" placeholder="Enter Your Name" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <button id="create-game-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300">Create New Game</button>
+            <div class="flex items-center space-x-2">
+                <input type="text" id="join-game-input" placeholder="Enter Game ID" class="flex-grow p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button id="join-game-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300">Join Game</button>
+            </div>
+        </div>
+        <p id="lobby-error" class="text-red-500 mt-4 h-4"></p>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="hidden w-full h-full flex flex-col p-4">
+        <!-- Top Bar -->
+        <div class="flex justify-between items-center mb-2 bg-white p-3 rounded-lg shadow-md">
+            <div>
+                <h1 class="text-2xl font-bold text-blue-600">Synthetiles</h1>
+                <p class="text-sm text-gray-500">Game ID: <span id="game-id-display" class="font-mono cursor-pointer" title="Click to copy"></span></p>
+            </div>
+            <div id="turn-indicator" class="text-lg font-semibold p-2 rounded-md"></div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex flex-grow space-x-4 min-h-0">
+            <!-- Player Info & Game Log -->
+            <div class="w-1/4 bg-white p-4 rounded-lg shadow-md flex flex-col">
+                <h2 class="text-xl font-bold mb-3 border-b pb-2">Players</h2>
+                <div id="player-scores" class="space-y-2"></div>
+                <div class="flex-grow mt-4 flex flex-col">
+                    <h3 class="text-lg font-bold mb-2 border-b pb-2">Game Log</h3>
+                    <div id="game-log" class="flex-grow bg-gray-50 p-2 rounded border overflow-y-auto text-sm"></div>
+                </div>
+            </div>
+
+            <!-- Game Board -->
+            <div class="flex-grow flex items-center justify-center bg-white p-4 rounded-lg shadow-md overflow-auto">
+                <div id="game-board-container"></div>
+            </div>
+        </div>
+
+        <!-- Bottom Bar (Player Hand & Actions) -->
+        <div class="mt-2 bg-white p-3 rounded-lg shadow-md">
+            <div class="flex justify-between items-center">
+                <div id="player-hand-container" class="flex-grow">
+                    <div class="mb-2">
+                        <h4 class="font-semibold text-sm text-gray-600">Compounds</h4>
+                        <div id="compound-hand" class="flex player-hand min-h-[65px]"></div>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold text-sm text-gray-600">Reactants & Power-ups</h4>
+                        <div id="reactant-hand" class="flex player-hand min-h-[65px]"></div>
+                    </div>
+                </div>
+                <div id="action-buttons" class="flex space-x-3 ml-4">
+                    <button id="place-tiles-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-5 rounded-lg transition disabled:bg-gray-400">Place Tiles</button>
+                    <button id="swap-tiles-btn" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-5 rounded-lg transition">Swap Tiles</button>
+                    <button id="skip-turn-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-5 rounded-lg transition">Skip Turn</button>
+                    <button id="quit-game-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-5 rounded-lg transition">Quit Game</button>
+                </div>
+                <div id="swap-confirm-buttons" class="hidden flex space-x-3 ml-4">
+                    <button id="confirm-swap-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-5 rounded-lg transition">Confirm Swap</button>
+                    <button id="cancel-swap-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-5 rounded-lg transition">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Modal for Messages -->
+    <div id="message-modal" class="modal-backdrop">
+        <div class="modal-content text-center">
+            <p id="modal-text" class="text-lg mb-6"></p>
+            <button id="modal-close-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg">OK</button>
+        </div>
+    </div>
+
+
+    <script type="module">
+        // Firebase Imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- GAME CONFIGURATION ---
+        const TILE_DEFINITIONS = {
+            'C1':{name:'Propene',type:'compound',score:1,category:'3alkene'},'C2':{name:'Propane',type:'compound',score:2,category:'3alkane'},'C3':{name:'2-bromopropane',type:'compound',score:2,category:'2bromo3alkane'},'C4':{name:'1-bromopropane',type:'compound',score:2,category:'1bromo3alkane'},'C5':{name:'1-propanol',type:'compound',score:2,category:'1alcohol'},'C6':{name:'1-chloropropane',type:'compound',score:2,category:'1chloro3alkane'},'C7':{name:'2-chloropropane',type:'compound',score:2,category:'2chloro3alkane'},'C8':{name:'Propanone',type:'compound',score:2,category:'ketone'},'C9':{name:'Propanal',type:'compound',score:2,category:'aldehyde'},'C10':{name:'Propanoic acid',type:'compound',score:2,category:'3acid'},'C11':{name:'2-methylpropanitrile',type:'compound',score:3,category:'2nitrile'},'C12':{name:'butanitrile',type:'compound',score:3,category:'4nitrile'},'C13':{name:'1-propanamine',type:'compound',score:2,category:'1amine'},'C14':{name:'2-propanamine',type:'compound',score:2,category:'2amine'},'C15':{name:'propanoyl chloride',type:'compound',score:3,category:'3acylchloride'},'C16':{name:'2-propanol',type:'compound',score:2,category:'2alcohol'},'C17':{name:'propyl magnesium chloride',type:'compound',score:2,category:'1grignardCl'},'C18':{name:'isopropyl magnesium chloride',type:'compound',score:2,category:'2grignardCl'},'C19':{name:'propyl magnesium bromide',type:'compound',score:2,category:'1grignardBr'},'C20':{name:'isopropyl magnesium bromide',type:'compound',score:2,category:'2grignardBr'},'C21':{name:'Propanamide',type:'compound',score:3,category:'amide'},'C22':{name:'Butanoic acid',type:'compound',score:4,category:'4acid'},'C23':{name:'2-methylpropanamine',type:'compound',score:4,category:'2methylasmine'},'C24':{name:'butanamine',type:'compound',score:4,category:'4amine'},'C25':{name:'1-bromo-2-propanol',type:'compound',score:3,category:'1bromo2alcohol'},'C26':{name:'1,2-propanediol',type:'compound',score:3,category:'diol'},'C27':{name:'1,2-dibromopropane',type:'compound',score:2,category:'dibromo'},'C28':{name:'2-methylpropanoic acid',type:'compound',score:4,category:'2methylacid'},'C29':{name:'Free compound',type:'compound',score:1,category:'freecomp'},
+            'R1':{name:'H₂,Pt',type:'reactant',score:2},'R2':{name:'HBr',type:'reactant',score:2},'R3':{name:'KMnO₄,OH-,cold',type:'reactant',score:2},'R4':{name:'Br₂,CH₂Cl₂',type:'reactant',score:2},'R5':{name:'Br₂(aq)',type:'reactant',score:2},'R6':{name:'Br₂,uv',type:'reactant',score:2},'R7':{name:'H₂O,H⁺',type:'reactant',score:2},'R8':{name:'HBr,H₂O₂',type:'reactant',score:2},'R9':{name:'NaOH,Ethanol',type:'reactant',score:2},'R10':{name:'NH3,Ethanol',type:'reactant',score:2},'R11':{name:'NaOH(aq)',type:'reactant',score:2},'R12':{name:'KCN,Ethanol',type:'reactant',score:2},'R13':{name:'Mg,dry ether',type:'reactant',score:2},'R14':{name:'PCC,CH₂Cl₂',type:'reactant',score:3},'R15':{name:'KMnO₄,H⁺,heat',type:'reactant',score:2},'R16':{name:'H₂SO₄(conc)',type:'reactant',score:2},'R17':{name:'excessNH3,heat',type:'reactant',score:2},'R18':{name:'PCl3',type:'reactant',score:2},'R19':{name:'PCl5',type:'reactant',score:2},'R20':{name:'SOCl2,pyridine⁺',type:'reactant',score:2},'R21':{name:'PBr3',type:'reactant',score:2},'R22':{name:'LiAlH₄',type:'reactant',score:2},'R23':{name:'CO₂',type:'reactant',score:3},'R24':{name:'NaBH₄, CH3OH',type:'reactant',score:2},'R25':{name:'HCl',type:'reactant',score:2},'R26':{name:'Free Reagent',type:'reactant',score:1},
+            'P1':{name:'Swap with player',type:'powerup',score:0},'P2':{name:'Swap from pile',type:'powerup',score:0},'P3':{name:'Double Points',type:'powerup',score:0},'P4':{name:'Skip',type:'powerup',score:0}
+        };
+        const REACTION_RULES={'C1':{'R1':'C2','R2':'C3','R3':'C26','R4':'C27','R5':'C25','R7':'C16','R8':'C4'},'C2':{'R6':'C3'},'C3':{'R9':'C1','R10':'C14','R12':'C11','R13':'C18','R11':'C16'},'C4':{'R9':'C1','R10':'C13','R12':'C12','R13':'C17','R11':'C5'},'C7':{'R9':'C1','R10':'C14','R12':'C11','R13':'C20','R11':'C6'},'C6':{'R9':'C1','R10':'C13','R12':'C12','R13':'C17','R11':'C5'},'C17':{'R23':'C22','R7':'C2'},'C19':{'R23':'C22','R7':'C2'},'C18':{'R23':'C28','R7':'C2'},'C20':{'R23':'C28','R7':'C2'},'C5':{'R14':'C9','R15':'C10','R18':'C6','R19':'C6','R20':'C6','R21':'C4','R2':'C4','R16':'C1','R25':'C6'},'C16':{'R14':'C8','R15':'C8','R18':'C7','R19':'C7','R20':'C7','R21':'C3','R2':'C3','R16':'C1','R25':'C7'},'C26':{'R21':'C27'},'C9':{'R15':'C10','R22':'C5','R24':'C5','R1':'C5'},'C8':{'R22':'C16','R24':'C16','R1':'C16'},'C10':{'R22':'C5','R1':'C5','R18':'C15','R19':'C15','R20':'C15','R17':'C21'},'C12':{'R22':'C24','R1':'C24','R7':'C22'},'C11':{'R22':'C23','R1':'C23','R7':'C28'}};
+        const BOARD_SIZE=15;
+        const firebaseConfig={apiKey:"AIzaSyCsGLhAISQDd2mRUy9HcRISNjbzdOV6zFI",authDomain:"the-synthetiles.firebaseapp.com",projectId:"the-synthetiles",storageBucket:"the-synthetiles.firebasestorage.app",messagingSenderId:"4417745494",appId:"1:4417745494:web:3aeeca49d76a518cb881f7",measurementId:"G-5TE6BNZN5H"};
+
+        const app=initializeApp(firebaseConfig);
+        const db=getFirestore(app);
+        const auth=getAuth(app);
+        let currentUser=null,currentGameId=null,unsubscribeGame=null;
+        const lobbyEl=document.getElementById('lobby'),gameScreenEl=document.getElementById('game-screen'),usernameInput=document.getElementById('username-input'),createGameBtn=document.getElementById('create-game-btn'),joinGameInput=document.getElementById('join-game-input'),joinGameBtn=document.getElementById('join-game-btn'),lobbyErrorEl=document.getElementById('lobby-error'),gameIdDisplay=document.getElementById('game-id-display'),boardContainer=document.getElementById('game-board-container'),playerHandContainer=document.getElementById('player-hand-container'),playerScoresEl=document.getElementById('player-scores'),turnIndicatorEl=document.getElementById('turn-indicator'),placeTilesBtn=document.getElementById('place-tiles-btn'),skipTurnBtn=document.getElementById('skip-turn-btn'),quitGameBtn=document.getElementById('quit-game-btn'),gameLogEl=document.getElementById('game-log'),messageModal=document.getElementById('message-modal'),modalText=document.getElementById('modal-text'),modalCloseBtn=document.getElementById('modal-close-btn'),swapTilesBtn=document.getElementById('swap-tiles-btn'),actionButtonsEl=document.getElementById('action-buttons'),swapConfirmButtonsEl=document.getElementById('swap-confirm-buttons'),confirmSwapBtn=document.getElementById('confirm-swap-btn'),cancelSwapBtn=document.getElementById('cancel-swap-btn');
+        let selectedHandTile=null,placedTilesThisTurn=[],isSwapMode=false,tilesToSwap=[];
+
+        onAuthStateChanged(auth,user=>{user?currentUser=user:signInAnonymously(auth).catch(error=>{console.error("Anonymous sign-in failed:",error);if(error.code==='auth/configuration-not-found'){const errorMessage="Configuration Error: Anonymous sign-in is not enabled in your Firebase project. Please follow the steps in the code comments to enable it in the Firebase console.";lobbyErrorEl.textContent="Configuration Error. See pop-up for details.";showMessage(errorMessage)}else{lobbyErrorEl.textContent="Could not connect. Please refresh."}})});
+        
+        function validateUsername() {
+            const username = usernameInput.value.trim();
+            if (!username) {
+                lobbyErrorEl.textContent = "Please enter a name to play.";
+                return null;
+            }
+            lobbyErrorEl.textContent = "";
+            return username;
+        }
+
+        createGameBtn.addEventListener('click',async()=>{if(!currentUser)return;const username=validateUsername();if(!username)return;const gameId=generateGameId();const gameRef=doc(db,"synthetiles-games",gameId);try{await createNewGame(gameRef,currentUser.uid,username);joinGame(gameId,username)}catch(error){console.error("Error creating game:",error);lobbyErrorEl.textContent="Failed to create game."}});
+        joinGameBtn.addEventListener('click',()=>{const username=validateUsername();if(!username)return;const gameId=joinGameInput.value.trim().toUpperCase();if(gameId){joinGame(gameId,username)}});
+        gameIdDisplay.addEventListener('click',()=>{navigator.clipboard.writeText(currentGameId).then(()=>showMessage("Game ID copied to clipboard!")).catch(err=>console.error('Failed to copy text: ',err))});
+        modalCloseBtn.addEventListener('click',()=>messageModal.classList.remove('visible'));
+        
+        async function createNewGame(gameRef,hostId,hostName){const{compoundDeck,reactantDeck}=generateInitialDecks();const players={};players[hostId]={id:hostId,score:0,hand:dealHand(compoundDeck,reactantDeck),name:hostName};const board=Array(BOARD_SIZE).fill(null).map(()=>Array(BOARD_SIZE).fill(null));const center=Math.floor(BOARD_SIZE/2);const startingCompoundId=compoundDeck.pop();board[center][center]={tileId:startingCompoundId};const gameData={players:players,playerOrder:[hostId],currentPlayerIndex:0,compoundDeck:compoundDeck,reactantDeck:reactantDeck,board:JSON.stringify(board),status:'waiting',log:[`${hostName} created the game.`]};await setDoc(gameRef,gameData)}
+        async function joinGame(gameId,playerName){if(!currentUser)return;currentGameId=gameId;const gameRef=doc(db,"synthetiles-games",gameId);try{const gameDoc=await getDoc(gameRef);if(!gameDoc.exists()){lobbyErrorEl.textContent="Game not found.";return}let gameData=gameDoc.data();if(!gameData.players[currentUser.uid]){if(gameData.playerOrder.length>=4){lobbyErrorEl.textContent="Game is full.";return}const newPlayerHand=dealHand(gameData.compoundDeck,gameData.reactantDeck);const updates={[`players.${currentUser.uid}`]:{id:currentUser.uid,score:0,hand:newPlayerHand,name:playerName},playerOrder:[...gameData.playerOrder,currentUser.uid],compoundDeck:gameData.compoundDeck,reactantDeck:gameData.reactantDeck,log:[...gameData.log,`${playerName} joined the game.`]};if(gameData.playerOrder.length===1){updates.status='in-progress';updates.log.push("The game has started!")}await updateDoc(gameRef,updates)}lobbyEl.classList.add('hidden');gameScreenEl.classList.remove('hidden');if(unsubscribeGame)unsubscribeGame();unsubscribeGame=onSnapshot(gameRef,doc=>{if(doc.exists()){renderGame(doc.data())}else{endGameSession("The game has ended.")}})}catch(error){console.error("Error joining game:",error);lobbyErrorEl.textContent="Could not join game."}}
+        
+        function renderGame(gameData){if(!gameData||!currentUser)return;gameIdDisplay.textContent=currentGameId;const boardData=JSON.parse(gameData.board);renderBoard(boardData);const myPlayer=gameData.players[currentUser.uid];if(myPlayer){renderHand(myPlayer.hand)}renderPlayerScores(gameData.players,gameData.playerOrder);updateTurnIndicator(gameData);updateGameLog(gameData.log);const isMyTurn=gameData.playerOrder[gameData.currentPlayerIndex]===currentUser.uid;placeTilesBtn.disabled=!isMyTurn||placedTilesThisTurn.length===0;skipTurnBtn.disabled=!isMyTurn;swapTilesBtn.disabled=!isMyTurn}
+        function renderBoard(boardData){boardContainer.innerHTML='';const center=Math.floor(BOARD_SIZE/2);for(let r=0;r<BOARD_SIZE;r++){for(let c=0;c<BOARD_SIZE;c++){const cell=document.createElement('div');cell.classList.add('board-cell','relative','flex','items-center','justify-center');if(r===center&&c===center){cell.classList.add('center')}cell.dataset.row=r;cell.dataset.col=c;const cellData=boardData[r][c];if(cellData&&cellData.tileId){const tile=createTileElement(cellData.tileId);tile.style.cursor='default';cell.appendChild(tile)}else{cell.addEventListener('click',()=>onBoardCellClick(r,c,cell))}boardContainer.appendChild(cell)}}}
+        
+        function renderHand(hand) {
+            const compoundHandEl = document.getElementById('compound-hand');
+            const reactantHandEl = document.getElementById('reactant-hand');
+            compoundHandEl.innerHTML = '';
+            reactantHandEl.innerHTML = '';
+
+            hand.forEach(tileId => {
+                const tileData = TILE_DEFINITIONS[tileId];
+                const tileElement = createTileElement(tileId);
+                tileElement.addEventListener('click', () => onHandTileClick(tileId, tileElement));
+
+                if (tileData.type === 'compound') {
+                    compoundHandEl.appendChild(tileElement);
+                } else { // Reactants and power-ups
+                    reactantHandEl.appendChild(tileElement);
+                }
+            });
+        }
+
+        function renderPlayerScores(players,playerOrder){playerScoresEl.innerHTML='';playerOrder.forEach(playerId=>{const player=players[playerId];const scoreDiv=document.createElement('div');scoreDiv.className='flex justify-between items-center p-2 rounded-md';if(playerId===currentUser.uid){scoreDiv.classList.add('bg-blue-100')}scoreDiv.innerHTML=`<span class="font-medium">${player.name} ${playerId===currentUser.uid?'(You)':''}</span> <span class="font-bold text-lg">${player.score}</span>`;playerScoresEl.appendChild(scoreDiv)})}
+        function updateTurnIndicator(gameData){
+            turnIndicatorEl.classList.remove('turn-change-animation');
+            const currentPlayerId=gameData.playerOrder[gameData.currentPlayerIndex];
+            const currentPlayer=gameData.players[currentPlayerId];
+            if(currentPlayerId===currentUser.uid){
+                turnIndicatorEl.textContent="It's your turn!";
+                turnIndicatorEl.className='text-lg font-semibold p-2 rounded-md bg-green-100 text-green-800';
+            } else {
+                turnIndicatorEl.textContent=`Waiting for ${currentPlayer.name}...`;
+                turnIndicatorEl.className='text-lg font-semibold p-2 rounded-md bg-yellow-100 text-yellow-800';
+            }
+            void turnIndicatorEl.offsetWidth; // Trigger reflow
+            turnIndicatorEl.classList.add('turn-change-animation');
+        }
+        function updateGameLog(log){gameLogEl.innerHTML='';log.slice().reverse().forEach(entry=>{const p=document.createElement('p');p.textContent=entry;p.className='mb-1';gameLogEl.appendChild(p)});gameLogEl.scrollTop=0}
+        
+        function createTileElement(tileId){
+            const tileData = TILE_DEFINITIONS[tileId];
+            const tile = document.createElement('div');
+            tile.classList.add('tile');
+            tile.dataset.tileId = tileId;
+            const imageUrl = `https://raw.githubusercontent.com/SirRusydi/synthetiles-asset/main/synthetiles-asset/${tileId}.png`;
+            tile.style.backgroundImage = `url('${imageUrl}')`;
+            tile.style.backgroundSize = 'contain';
+            tile.style.backgroundRepeat = 'no-repeat';
+            tile.style.backgroundPosition = 'center';
+            tile.innerHTML = `
+                <span class="score">${tileData.score}</span>
+                <div class="tile-name">${tileData.name}</div>
+            `;
+            return tile;
+        }
+        
+        function onHandTileClick(tileId,element){if(isSwapMode){element.classList.toggle('swap-selected');const index=tilesToSwap.indexOf(tileId);if(index>-1){tilesToSwap.splice(index,1)}else{tilesToSwap.push(tileId)}return}if(selectedHandTile&&selectedHandTile.tileId===tileId){selectedHandTile.element.classList.remove('selected');selectedHandTile=null;return}if(selectedHandTile){selectedHandTile.element.classList.remove('selected')}selectedHandTile={tileId,element};element.classList.add('selected')}
+        
+        function onBoardCellClick(row, col, cellElement) {
+            const placedTileIndex = placedTilesThisTurn.findIndex(p => p.row === row && p.col === col);
+
+            if (placedTileIndex > -1) {
+                const tileToRemove = placedTilesThisTurn[placedTileIndex];
+                placedTilesThisTurn.splice(placedTileIndex, 1);
+                cellElement.innerHTML = '';
+
+                const handTile = playerHandContainer.querySelector(`[data-tile-id='${tileToRemove.tileId}'][style*='display: none']`);
+                if (handTile) {
+                    handTile.style.display = 'flex';
+                }
+
+                if (placedTilesThisTurn.length === 0) {
+                    placeTilesBtn.disabled = true;
+                }
+                return;
+            }
+
+            if (!selectedHandTile) {
+                return;
+            }
+
+            const tileEl = createTileElement(selectedHandTile.tileId);
+            tileEl.style.cursor = 'default';
+            tileEl.classList.add('tile-placed');
+            cellElement.appendChild(tileEl);
+
+            placedTilesThisTurn.push({ tileId: selectedHandTile.tileId, row, col });
+            selectedHandTile.element.style.display = 'none';
+            selectedHandTile.element.classList.remove('selected');
+            selectedHandTile = null;
+            placeTilesBtn.disabled = false;
+        }
+        
+        placeTilesBtn.addEventListener('click',async()=>{if(placedTilesThisTurn.length===0)return;placeTilesBtn.disabled=true;const gameRef=doc(db,"synthetiles-games",currentGameId);const gameDoc=await getDoc(gameRef);if(!gameDoc.exists())return;const gameData=gameDoc.data();const board=JSON.parse(gameData.board);const{score,validMoves,logEntry}=validateAndScoreTurn(placedTilesThisTurn,board);if(validMoves>0){const newBoard=board.map(row=>[...row]);placedTilesThisTurn.forEach(p=>{newBoard[p.row][p.col]={tileId:p.tileId}});const player=gameData.players[currentUser.uid];const placedTileIds=placedTilesThisTurn.map(p=>p.tileId);let newHand=player.hand.filter(id=>!placedTileIds.includes(id));const newCompoundDeck=[...gameData.compoundDeck];const newReactantDeck=[...gameData.reactantDeck];placedTileIds.forEach(id=>{const tileType=TILE_DEFINITIONS[id].type;if(tileType==='compound'&&newCompoundDeck.length>0){newHand.push(newCompoundDeck.pop())}else if((tileType==='reactant'||tileType==='powerup')&&newReactantDeck.length>0){newHand.push(newReactantDeck.pop())}});const nextPlayerIndex=(gameData.currentPlayerIndex+1)%gameData.playerOrder.length;const updates={board:JSON.stringify(newBoard),compoundDeck:newCompoundDeck,reactantDeck:newReactantDeck,[`players.${currentUser.uid}.hand`]:newHand,[`players.${currentUser.uid}.score`]:player.score+score,currentPlayerIndex:nextPlayerIndex,log:[...gameData.log,`${player.name} ${logEntry}`]};await updateDoc(gameRef,updates)}else{showMessage("Invalid move. A reaction must be formed with an existing tile.");renderGame(gameData)}placedTilesThisTurn=[]});
+        skipTurnBtn.addEventListener('click',async()=>{const gameRef=doc(db,"synthetiles-games",currentGameId);const gameDoc=await getDoc(gameRef);if(!gameDoc.exists())return;const gameData=gameDoc.data();const player=gameData.players[currentUser.uid];const nextPlayerIndex=(gameData.currentPlayerIndex+1)%gameData.playerOrder.length;await updateDoc(gameRef,{currentPlayerIndex:nextPlayerIndex,log:[...gameData.log,`${player.name} skipped their turn.`]})});
+        quitGameBtn.addEventListener('click',()=>{endGameSession("You left the game.")});
+        
+        swapTilesBtn.addEventListener('click', () => {
+            isSwapMode = true;
+            showMessage("Select tiles to swap, then click 'Confirm Swap'.");
+            actionButtonsEl.classList.add('hidden');
+            swapConfirmButtonsEl.classList.remove('hidden');
+        });
+
+        cancelSwapBtn.addEventListener('click', () => {
+            isSwapMode = false;
+            tilesToSwap = [];
+            document.querySelectorAll('.swap-selected').forEach(el => el.classList.remove('swap-selected'));
+            actionButtonsEl.classList.remove('hidden');
+            swapConfirmButtonsEl.classList.add('hidden');
+        });
+
+        confirmSwapBtn.addEventListener('click', async () => {
+            if (tilesToSwap.length === 0) {
+                showMessage("You haven't selected any tiles to swap.");
+                return;
+            }
+
+            const gameRef = doc(db, "synthetiles-games", currentGameId);
+            const gameDoc = await getDoc(gameRef);
+            if (!gameDoc.exists()) return;
+            const gameData = gameDoc.data();
+            
+            const player = gameData.players[currentUser.uid];
+            let newHand = player.hand.filter(id => !tilesToSwap.includes(id));
+            
+            let newCompoundDeck = [...gameData.compoundDeck];
+            let newReactantDeck = [...gameData.reactantDeck];
+
+            tilesToSwap.forEach(id => {
+                const tileType = TILE_DEFINITIONS[id].type;
+                if (tileType === 'compound') {
+                    newCompoundDeck.push(id);
+                } else {
+                    newReactantDeck.push(id);
+                }
+            });
+
+            newCompoundDeck = shuffleArray(newCompoundDeck);
+            newReactantDeck = shuffleArray(newReactantDeck);
+
+            tilesToSwap.forEach(id => {
+                const tileType = TILE_DEFINITIONS[id].type;
+                if (tileType === 'compound' && newCompoundDeck.length > 0) {
+                    newHand.push(newCompoundDeck.pop());
+                } else if ((tileType === 'reactant' || tileType === 'powerup') && newReactantDeck.length > 0) {
+                    newHand.push(newReactantDeck.pop());
+                }
+            });
+
+            const nextPlayerIndex = (gameData.currentPlayerIndex + 1) % gameData.playerOrder.length;
+            const updates = {
+                compoundDeck: newCompoundDeck,
+                reactantDeck: newReactantDeck,
+                [`players.${currentUser.uid}.hand`]: newHand,
+                currentPlayerIndex: nextPlayerIndex,
+                log: [...gameData.log, `${player.name} swapped ${tilesToSwap.length} tile(s).`]
+            };
+
+            await updateDoc(gameRef, updates);
+
+            isSwapMode = false;
+            tilesToSwap = [];
+            actionButtonsEl.classList.remove('hidden');
+            swapConfirmButtonsEl.classList.add('hidden');
+        });
+
+        function endGameSession(message){if(unsubscribeGame){unsubscribeGame();unsubscribeGame=null}currentGameId=null;gameScreenEl.classList.add('hidden');lobbyEl.classList.remove('hidden');placedTilesThisTurn=[];selectedHandTile=null;showMessage(message)}
+        
+        function validateAndScoreTurn(placedTiles, board) {
+            let totalScore = 0;
+            let validMoves = 0;
+            let logParts = [];
+            let hasConnectionToBoard = false;
+            const checkedReactions = new Set(); 
+
+            const isFirstMove = board.flat().filter(Boolean).length <= 1;
+            if (isFirstMove) {
+                hasConnectionToBoard = true;
+            } else {
+                for (const placed of placedTiles) {
+                    const neighbors = getNeighbors(placed.row, placed.col, board);
+                    if (neighbors.some(n => n.tile !== null)) {
+                        hasConnectionToBoard = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (!hasConnectionToBoard) {
+                 return { score: 0, validMoves: 0, logEntry: "" };
+            }
+
+            for (const placed of placedTiles) {
+                const { row, col } = placed;
+                const directions = [{ r: 0, c: 1 }, { r: 1, c: 0 }];
+
+                for (const dir of directions) {
+                    for (let i = -1; i <= 1; i++) {
+                        const p1_pos = { row: row + (i - 1) * dir.r, col: col + (i - 1) * dir.c };
+                        const p2_pos = { row: row + i * dir.r, col: col + i * dir.c };
+                        const p3_pos = { row: row + (i + 1) * dir.r, col: col + (i + 1) * dir.c };
+
+                        const tile1 = findTileAt(p1_pos.row, p1_pos.col, board, placedTiles);
+                        const tile2 = findTileAt(p2_pos.row, p2_pos.col, board, placedTiles);
+                        const tile3 = findTileAt(p3_pos.row, p3_pos.col, board, placedTiles);
+
+                        if (tile1 && tile2 && tile3) {
+                            const reactionKey = [tile1.tileId, tile2.tileId, tile3.tileId].sort().join('-');
+                            if (checkedReactions.has(reactionKey)) continue;
+
+                            const info1 = TILE_DEFINITIONS[tile1.tileId];
+                            const info2 = TILE_DEFINITIONS[tile2.tileId];
+                            const info3 = TILE_DEFINITIONS[tile3.tileId];
+
+                            const checkAndScore = (start, react, prod) => {
+                                const reactionCheck = REACTION_RULES[start.tileId]?.[react.tileId];
+                                const isFreeReaction = start.tileId === 'C29' || prod.tileId === 'C29' || react.tileId === 'R26';
+                                
+                                if (reactionCheck === prod.tileId || isFreeReaction) {
+                                    const moveScore = TILE_DEFINITIONS[start.tileId].score + TILE_DEFINITIONS[react.tileId].score + TILE_DEFINITIONS[prod.tileId].score;
+                                    totalScore += moveScore;
+                                    logParts.push(`formed a reaction for ${moveScore} points`);
+                                    checkedReactions.add(reactionKey);
+                                    return true;
+                                }
+                                return false;
+                            };
+
+                            if (info1.type === 'compound' && info2.type === 'reactant' && info3.type === 'compound') {
+                                checkAndScore(tile1, tile2, tile3);
+                            } else if (info3.type === 'compound' && info2.type === 'reactant' && info1.type === 'compound') {
+                                checkAndScore(tile3, tile2, tile1);
+                            }
+                        }
+                    }
+                }
+            }
+
+            const logEntry = logParts.length > 0 ? logParts.join(', ') : "played tiles.";
+            
+            if (logParts.length > 0) {
+                validMoves = 1;
+            } else if (hasConnectionToBoard) {
+                validMoves = 1;
+                totalScore = 0;
+            }
+
+            return { score: totalScore, validMoves, logEntry };
+        }
+
+        function getNeighbors(r,c,board,placedThisTurn=[]){const neighbors=[],directions=[{r:-1,c:0},{r:1,c:0},{r:0,c:-1},{r:0,c:1}];for(const dir of directions){const nr=r+dir.r,nc=c+dir.c;if(nr>=0&&nr<BOARD_SIZE&&nc>=0&&nc<BOARD_SIZE){let tile=board[nr][nc];if(!tile){const placed=placedThisTurn.find(p=>p.row===nr&&p.col===nc);if(placed)tile={tileId:placed.tileId}}neighbors.push({tile,pos:{row:nr,col:nc}})}}return neighbors}
+        function findTileAt(r,c,board,placedThisTurn=[]){if(r<0||r>=BOARD_SIZE||c<0||c>=BOARD_SIZE)return null;let tile=board[r][c];if(!tile){const placed=placedThisTurn.find(p=>p.row===r&&p.col===c);if(placed)tile={tileId:placed.tileId}}return tile}
+        
+        function generateGameId(){return Math.random().toString(36).substring(2,7).toUpperCase()}
+        function generateInitialDecks(){let compoundDeck=[],reactantDeck=[];for(const tileId in TILE_DEFINITIONS){const tile=TILE_DEFINITIONS[tileId];if(tile.type==='compound'){for(let i=0;i<2;i++)compoundDeck.push(tileId)}else if(tile.type==='reactant'||tile.type==='powerup'){for(let i=0;i<2;i++)reactantDeck.push(tileId)}}return{compoundDeck:shuffleArray(compoundDeck),reactantDeck:shuffleArray(reactantDeck)}}
+        function shuffleArray(array){for(let i=array.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[array[i],array[j]]=[array[j],array[i]]}return array}
+        function dealHand(compoundDeck,reactantDeck){const hand=[];for(let i=0;i<5;i++){if(compoundDeck.length>0)hand.push(compoundDeck.pop());if(reactantDeck.length>0)hand.push(reactantDeck.pop())}return hand}
+        function showMessage(text){modalText.textContent=text;messageModal.classList.add('visible')}
+    </script>
+</body>
+</html>
