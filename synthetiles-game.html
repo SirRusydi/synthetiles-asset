@@ -155,6 +155,30 @@
         <p id="lobby-error" class="text-red-500 mt-4 h-4"></p>
     </div>
 
+<!-- Waiting Lobby Screen -->
+    <div id="waiting-lobby" class="hidden text-center bg-white p-8 rounded-xl shadow-lg w-full max-w-lg">
+        <h1 class="text-3xl font-bold text-blue-600 mb-2">Waiting for Players...</h1>
+        <p class="text-gray-600 mb-4">Share the Game ID with your friends to let them join.</p>
+        <div class="mb-6">
+            <p class="text-sm text-gray-500">Game ID</p>
+            <p id="waiting-game-id" class="text-4xl font-mono tracking-widest bg-gray-100 p-3 rounded-lg cursor-pointer" title="Click to copy"></p>
+        </div>
+        
+        <h2 class="text-xl font-bold mb-3">Players Joined</h2>
+        <div id="waiting-player-list" class="space-y-2 mb-6 min-h-[100px]">
+            <!-- Player names will be dynamically inserted here -->
+        </div>
+
+        <div id="host-controls" class="hidden">
+            <button id="start-game-btn" disabled class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                Start Game (Need 3 players)
+            </button>
+        </div>
+        <div id="waiting-message">
+            <p class="text-gray-600">Waiting for the host to start the game.</p>
+        </div>
+    </div>
+
     <!-- Game Screen -->
     <div id="game-screen" class="hidden w-full h-full flex flex-col p-4">
         <!-- Top Bar -->
@@ -239,6 +263,14 @@
         const lobbyEl=document.getElementById('lobby'),gameScreenEl=document.getElementById('game-screen'),usernameInput=document.getElementById('username-input'),createGameBtn=document.getElementById('create-game-btn'),joinGameInput=document.getElementById('join-game-input'),joinGameBtn=document.getElementById('join-game-btn'),lobbyErrorEl=document.getElementById('lobby-error'),gameIdDisplay=document.getElementById('game-id-display'),boardContainer=document.getElementById('game-board-container'),playerHandContainer=document.getElementById('player-hand-container'),playerScoresEl=document.getElementById('player-scores'),turnIndicatorEl=document.getElementById('turn-indicator'),placeTilesBtn=document.getElementById('place-tiles-btn'),skipTurnBtn=document.getElementById('skip-turn-btn'),quitGameBtn=document.getElementById('quit-game-btn'),messageModal=document.getElementById('message-modal'),modalText=document.getElementById('modal-text'),modalCloseBtn=document.getElementById('modal-close-btn'),swapTilesBtn=document.getElementById('swap-tiles-btn'),actionButtonsEl=document.getElementById('action-buttons'),swapConfirmButtonsEl=document.getElementById('swap-confirm-buttons'),confirmSwapBtn=document.getElementById('confirm-swap-btn'),cancelSwapBtn=document.getElementById('cancel-swap-btn');
         let selectedHandTile=null,placedTilesThisTurn=[],isSwapMode=false,tilesToSwap=[];
 
+// New Waiting Lobby elements
+        const waitingLobbyEl = document.getElementById('waiting-lobby');
+        const waitingGameIdEl = document.getElementById('waiting-game-id');
+        const waitingPlayerListEl = document.getElementById('waiting-player-list');
+        const hostControlsEl = document.getElementById('host-controls');
+        const startGameBtn = document.getElementById('start-game-btn');
+        const waitingMessageEl = document.getElementById('waiting-message');
+       
         onAuthStateChanged(auth,user=>{user?currentUser=user:signInAnonymously(auth).catch(error=>{console.error("Anonymous sign-in failed:",error);if(error.code==='auth/configuration-not-found'){const errorMessage="Configuration Error: Anonymous sign-in is not enabled in your Firebase project. Please follow the steps in the code comments to enable it in the Firebase console.";lobbyErrorEl.textContent="Configuration Error. See pop-up for details.";showMessage(errorMessage)}else{lobbyErrorEl.textContent="Could not connect. Please refresh."}})});
         
         function validateUsername() {
@@ -254,10 +286,72 @@
         createGameBtn.addEventListener('click',async()=>{if(!currentUser)return;const username=validateUsername();if(!username)return;const gameId=generateGameId();const gameRef=doc(db,"synthetiles-games",gameId);try{await createNewGame(gameRef,currentUser.uid,username);joinGame(gameId,username)}catch(error){console.error("Error creating game:",error);lobbyErrorEl.textContent="Failed to create game."}});
         joinGameBtn.addEventListener('click',()=>{const username=validateUsername();if(!username)return;const gameId=joinGameInput.value.trim().toUpperCase();if(gameId){joinGame(gameId,username)}});
         gameIdDisplay.addEventListener('click',()=>{navigator.clipboard.writeText(currentGameId).then(()=>showMessage("Game ID copied to clipboard!")).catch(err=>console.error('Failed to copy text: ',err))});
+        waitingGameIdEl.addEventListener('click',()=>{navigator.clipboard.writeText(currentGameId).then(()=>showMessage("Game ID copied to clipboard!")).catch(err=>console.error('Failed to copy text: ',err))});
         modalCloseBtn.addEventListener('click',()=>messageModal.classList.remove('visible'));
         
-        async function createNewGame(gameRef,hostId,hostName){const{compoundDeck,reactantDeck}=generateInitialDecks();const players={};players[hostId]={id:hostId,score:0,hand:dealHand(compoundDeck,reactantDeck),name:hostName};const board=Array(BOARD_SIZE).fill(null).map(()=>Array(BOARD_SIZE).fill(null));const center=Math.floor(BOARD_SIZE/2);const startingCompoundId=compoundDeck.pop();board[center][center]={tileId:startingCompoundId};const gameData={players:players,playerOrder:[hostId],currentPlayerIndex:0,compoundDeck:compoundDeck,reactantDeck:reactantDeck,board:JSON.stringify(board),status:'waiting',log:[`${hostName} created the game.`]};await setDoc(gameRef,gameData)}
-        async function joinGame(gameId,playerName){if(!currentUser)return;currentGameId=gameId;const gameRef=doc(db,"synthetiles-games",gameId);try{const gameDoc=await getDoc(gameRef);if(!gameDoc.exists()){lobbyErrorEl.textContent="Game not found.";return}let gameData=gameDoc.data();if(!gameData.players[currentUser.uid]){if(gameData.playerOrder.length>=4){lobbyErrorEl.textContent="Game is full.";return}const newPlayerHand=dealHand(gameData.compoundDeck,gameData.reactantDeck);const updates={[`players.${currentUser.uid}`]:{id:currentUser.uid,score:0,hand:newPlayerHand,name:playerName},playerOrder:[...gameData.playerOrder,currentUser.uid],compoundDeck:gameData.compoundDeck,reactantDeck:gameData.reactantDeck,log:[...gameData.log,`${playerName} joined the game.`]};if(gameData.playerOrder.length===1){updates.status='in-progress';updates.log.push("The game has started!")}await updateDoc(gameRef,updates)}lobbyEl.classList.add('hidden');gameScreenEl.classList.remove('hidden');if(unsubscribeGame)unsubscribeGame();unsubscribeGame=onSnapshot(gameRef,doc=>{if(doc.exists()){renderGame(doc.data())}else{endGameSession("The game has ended.")}})}catch(error){console.error("Error joining game:",error);lobbyErrorEl.textContent="Could not join game."}}
+        async function createNewGame(gameRef,hostId,hostName){const{compoundDeck,reactantDeck}=generateInitialDecks();const players={};players[hostId]={id:hostId,score:0,hand:dealHand(compoundDeck,reactantDeck),name:hostName};const board=Array(BOARD_SIZE).fill(null).map(()=>Array(BOARD_SIZE).fill(null));const center=Math.floor(BOARD_SIZE/2);const startingCompoundId=compoundDeck.pop();board[center][center]={tileId:startingCompoundId};const gameData={hostId: hostId, players:players,playerOrder:[hostId],currentPlayerIndex:0,compoundDeck:compoundDeck,reactantDeck:reactantDeck,board:JSON.stringify(board),status:'waiting',log:[`${hostName} created the game.`]};await setDoc(gameRef,gameData)}
+        async function joinGame(gameId,playerName){if(!currentUser)return;currentGameId=gameId;const gameRef=doc(db,"synthetiles-games",gameId);try{const gameDoc=await getDoc(gameRef);if(!gameDoc.exists()){lobbyErrorEl.textContent="Game not found.";return}let gameData=gameDoc.data();if(!gameData.players[currentUser.uid]){if(gameData.playerOrder.length>=4){lobbyErrorEl.textContent="Game is full.";return}if(gameData.status !== 'waiting'){lobbyErrorEl.textContent="Game has already started.";return}const newPlayerHand=dealHand(gameData.compoundDeck,gameData.reactantDeck);const updates={[`players.${currentUser.uid}`]:{id:currentUser.uid,score:0,hand:newPlayerHand,name:playerName},playerOrder:[...gameData.playerOrder,currentUser.uid],compoundDeck:gameData.compoundDeck,reactantDeck:gameData.reactantDeck,log:[...gameData.log,`${playerName} joined the game.`]};await updateDoc(gameRef,updates)}
+            
+            lobbyEl.classList.add('hidden');
+            waitingLobbyEl.classList.remove('hidden');
+
+            if(unsubscribeGame)unsubscribeGame();
+            unsubscribeGame=onSnapshot(gameRef,doc=>{
+                if(doc.exists()){
+                    const gameData = doc.data();
+                    if (gameData.status === 'waiting') {
+                        renderWaitingLobby(gameData);
+                    } else if (gameData.status === 'in-progress') {
+                        waitingLobbyEl.classList.add('hidden');
+                        gameScreenEl.classList.remove('hidden');
+                        renderGame(gameData);
+                    }
+                } else {
+                    endGameSession("The game has ended.");
+                }
+            })
+        }catch(error){console.error("Error joining game:",error);lobbyErrorEl.textContent="Could not join game."}}
+        
+        function renderWaitingLobby(gameData) {
+            waitingGameIdEl.textContent = currentGameId;
+            waitingPlayerListEl.innerHTML = '';
+            gameData.playerOrder.forEach(playerId => {
+                const player = gameData.players[playerId];
+                const playerEl = document.createElement('div');
+                playerEl.className = 'bg-gray-100 p-2 rounded-md text-lg';
+                playerEl.textContent = player.name;
+                waitingPlayerListEl.appendChild(playerEl);
+            });
+
+            if (currentUser.uid === gameData.hostId) {
+                hostControlsEl.classList.remove('hidden');
+                waitingMessageEl.classList.add('hidden');
+                const playerCount = gameData.playerOrder.length;
+                if (playerCount >= 3) {
+                    startGameBtn.disabled = false;
+                    startGameBtn.textContent = 'Start Game';
+                } else {
+                    startGameBtn.disabled = true;
+                    startGameBtn.textContent = `Need ${3 - playerCount} more player(s)`;
+                }
+            } else {
+                hostControlsEl.classList.add('hidden');
+                waitingMessageEl.classList.remove('hidden');
+            }
+        }
+        
+        startGameBtn.addEventListener('click', async () => {
+            const gameRef = doc(db, "synthetiles-games", currentGameId);
+            const gameDoc = await getDoc(gameRef);
+            if (!gameDoc.exists()) return;
+            const gameData = gameDoc.data();
+            await updateDoc(gameRef, {
+                status: 'in-progress',
+                log: [...gameData.log, 'The game has started!']
+            });
+             // The onSnapshot listener will handle the screen transition for all players.
+        });
+
         
         function renderGame(gameData){if(!gameData||!currentUser)return;gameIdDisplay.textContent=currentGameId;const boardData=JSON.parse(gameData.board);renderBoard(boardData);const myPlayer=gameData.players[currentUser.uid];if(myPlayer){renderHand(myPlayer.hand)}renderPlayerScores(gameData.players,gameData.playerOrder);updateTurnIndicator(gameData);const isMyTurn=gameData.playerOrder[gameData.currentPlayerIndex]===currentUser.uid;placeTilesBtn.disabled=!isMyTurn||placedTilesThisTurn.length===0;skipTurnBtn.disabled=!isMyTurn;swapTilesBtn.disabled=!isMyTurn}
         function renderBoard(boardData){boardContainer.innerHTML='';const center=Math.floor(BOARD_SIZE/2);for(let r=0;r<BOARD_SIZE;r++){for(let c=0;c<BOARD_SIZE;c++){const cell=document.createElement('div');cell.classList.add('board-cell','relative','flex','items-center','justify-center');if(r===center&&c===center){cell.classList.add('center')}cell.dataset.row=r;cell.dataset.col=c;const cellData=boardData[r][c];if(cellData&&cellData.tileId){const tile=createTileElement(cellData.tileId);tile.style.cursor='default';cell.appendChild(tile)}else{cell.addEventListener('click',()=>onBoardCellClick(r,c,cell))}boardContainer.appendChild(cell)}}}
