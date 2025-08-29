@@ -159,25 +159,10 @@
         <p id="lobby-error" class="text-red-500 mt-4 h-4"></p>
     </div>
 
-<!-- Waiting Lobby Screen -->
+    <!-- Waiting Lobby Screen -->
     <div id="waiting-lobby" class="hidden text-center bg-white p-8 rounded-xl shadow-lg w-full max-w-lg">
         <h1 class="text-3xl font-bold text-blue-600 mb-2">Waiting for Players...</h1>
-        <p class="text-gray-600 mb-4">Share the Game ID with your friends to let them join.</p>
-        <div class="mb-6">
-            <p class="text-sm text-gray-500">Game ID</p>
-            <p id="waiting-game-id" class="text-4xl font-mono tracking-widest bg-gray-100 p-3 rounded-lg cursor-pointer" title="Click to copy"></p>
-        </div>
-        
-        <h2 class="text-xl font-bold mb-3">Players Joined</h2>
-        <div id="waiting-player-list" class="space-y-2 mb-6 min-h-[100px]">
-            <!-- Player names will be dynamically inserted here -->
-        </div>
-
-        <div id="host-controls" class="hidden">
-            <button id="start-game-btn" disabled class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed">
-                Start Game (Need 3 players)
-            </button>
-        </div>
+<!-- ... existing code ... -->
         <div id="waiting-message">
             <p class="text-gray-600">Waiting for the host to start the game.</p>
         </div>
@@ -195,41 +180,44 @@
         </div>
 
         <!-- Main Content -->
-        <div class="flex flex-grow space-x-4 min-h-0">
-            <!-- Player Info -->
-            <div class="w-1/5 bg-white p-4 rounded-lg shadow-md flex flex-col">
-                <h2 class="text-xl font-bold mb-3 border-b pb-2">Players</h2>
-                <div id="player-scores" class="space-y-2"></div>
-            </div>
-
-            <!-- Game Board -->
+        <div class="flex flex-col lg:flex-row flex-grow space-y-4 lg:space-y-0 lg:space-x-4 min-h-0">
+            <!-- Left Column (Board) -->
             <div class="flex-grow flex items-center justify-center bg-white p-4 rounded-lg shadow-md overflow-auto">
                 <div id="game-board-container"></div>
             </div>
-        </div>
 
-        <!-- Bottom Bar (Player Hand & Actions) -->
-        <div class="mt-2 bg-white p-3 rounded-lg shadow-md">
-            <div class="flex justify-between items-center">
-                <div id="player-hand-container" class="flex-grow">
+            <!-- Right Column (Info, Hand, Actions) -->
+            <div class="w-full lg:w-1/3 bg-white p-4 rounded-lg shadow-md flex flex-col space-y-4 overflow-y-auto">
+                <!-- Player Info -->
+                <div>
+                    <h2 class="text-xl font-bold mb-2 border-b pb-2">Players</h2>
+                    <div id="player-scores" class="space-y-2"></div>
+                </div>
+
+                <!-- Player Hand -->
+                <div id="player-hand-container">
                     <div class="mb-2">
                         <h4 class="font-semibold text-sm text-gray-600">Compounds</h4>
-                        <div id="compound-hand" class="flex player-hand min-h-[95px]"></div>
+                        <div id="compound-hand" class="flex player-hand min-h-[65px] flex-wrap"></div>
                     </div>
                     <div>
                         <h4 class="font-semibold text-sm text-gray-600">Reactants & Power-ups</h4>
-                        <div id="reactant-hand" class="flex player-hand min-h-[95px]"></div>
+                        <div id="reactant-hand" class="flex player-hand min-h-[65px] flex-wrap"></div>
                     </div>
                 </div>
-                <div id="action-buttons" class="flex space-x-3 ml-4">
-                    <button id="place-tiles-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-5 rounded-lg transition disabled:bg-gray-400">Place Tiles</button>
-                    <button id="swap-tiles-btn" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-5 rounded-lg transition">Swap Tiles</button>
-                    <button id="skip-turn-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-5 rounded-lg transition">Skip Turn</button>
-                    <button id="quit-game-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-5 rounded-lg transition">Quit Game</button>
+
+                <!-- Action Buttons -->
+                <div id="action-buttons" class="flex flex-col space-y-2">
+                    <button id="place-tiles-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-5 rounded-lg transition disabled:bg-gray-400">Place Tiles</button>
+                    <div class="flex space-x-2">
+                        <button id="swap-tiles-btn" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-5 rounded-lg transition">Swap</button>
+                        <button id="skip-turn-btn" class="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-5 rounded-lg transition">Skip</button>
+                    </div>
+                    <button id="quit-game-btn" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-5 rounded-lg transition">Quit Game</button>
                 </div>
-                <div id="swap-confirm-buttons" class="hidden flex space-x-3 ml-4">
-                    <button id="confirm-swap-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-5 rounded-lg transition">Confirm Swap</button>
-                    <button id="cancel-swap-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-5 rounded-lg transition">Cancel</button>
+                <div id="swap-confirm-buttons" class="hidden flex space-x-2">
+                    <button id="confirm-swap-btn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-5 rounded-lg transition">Confirm Swap</button>
+                    <button id="cancel-swap-btn" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-5 rounded-lg transition">Cancel</button>
                 </div>
             </div>
         </div>
