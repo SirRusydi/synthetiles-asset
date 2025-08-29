@@ -12,8 +12,8 @@
             overflow: hidden; /* Prevent scrolling */
         }
         .tile {
-            width: 60px;
-            height: 60px;
+            width: 90px; /* 1.5x original size */
+            height: 90px; /* 1.5x original size */
             border: 1px solid #9CA3AF;
             background-color: #F3F4F6;
             display: flex;
@@ -26,13 +26,6 @@
             transition: all 0.2s ease-in-out;
             position: relative;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .tile .score {
-            position: absolute;
-            bottom: 2px;
-            right: 4px;
-            font-size: 10px;
-            font-weight: bold;
         }
         .tile.selected {
             border-color: #3B82F6;
@@ -68,8 +61,8 @@
             opacity: 1;
         }
         .board-cell {
-            width: 65px;
-            height: 65px;
+            width: 95px; /* Accommodate larger tiles */
+            height: 95px; /* Accommodate larger tiles */
             border: 1px dashed #D1D5DB;
             background-color: #fff;
             border-radius: 8px;
@@ -88,8 +81,8 @@
         }
         #game-board-container {
             display: grid;
-            grid-template-columns: repeat(15, 65px);
-            grid-template-rows: repeat(15, 65px);
+            grid-template-columns: repeat(15, 95px); /* Accommodate larger cells */
+            grid-template-rows: repeat(15, 95px);    /* Accommodate larger cells */
             gap: 2px;
         }
         /* Custom modal styles */
@@ -175,14 +168,10 @@
 
         <!-- Main Content -->
         <div class="flex flex-grow space-x-4 min-h-0">
-            <!-- Player Info & Game Log -->
-            <div class="w-1/4 bg-white p-4 rounded-lg shadow-md flex flex-col">
+            <!-- Player Info -->
+            <div class="w-1/5 bg-white p-4 rounded-lg shadow-md flex flex-col">
                 <h2 class="text-xl font-bold mb-3 border-b pb-2">Players</h2>
                 <div id="player-scores" class="space-y-2"></div>
-                <div class="flex-grow mt-4 flex flex-col">
-                    <h3 class="text-lg font-bold mb-2 border-b pb-2">Game Log</h3>
-                    <div id="game-log" class="flex-grow bg-gray-50 p-2 rounded border overflow-y-auto text-sm"></div>
-                </div>
             </div>
 
             <!-- Game Board -->
@@ -197,11 +186,11 @@
                 <div id="player-hand-container" class="flex-grow">
                     <div class="mb-2">
                         <h4 class="font-semibold text-sm text-gray-600">Compounds</h4>
-                        <div id="compound-hand" class="flex player-hand min-h-[65px]"></div>
+                        <div id="compound-hand" class="flex player-hand min-h-[95px]"></div>
                     </div>
                     <div>
                         <h4 class="font-semibold text-sm text-gray-600">Reactants & Power-ups</h4>
-                        <div id="reactant-hand" class="flex player-hand min-h-[65px]"></div>
+                        <div id="reactant-hand" class="flex player-hand min-h-[95px]"></div>
                     </div>
                 </div>
                 <div id="action-buttons" class="flex space-x-3 ml-4">
@@ -247,7 +236,7 @@
         const db=getFirestore(app);
         const auth=getAuth(app);
         let currentUser=null,currentGameId=null,unsubscribeGame=null;
-        const lobbyEl=document.getElementById('lobby'),gameScreenEl=document.getElementById('game-screen'),usernameInput=document.getElementById('username-input'),createGameBtn=document.getElementById('create-game-btn'),joinGameInput=document.getElementById('join-game-input'),joinGameBtn=document.getElementById('join-game-btn'),lobbyErrorEl=document.getElementById('lobby-error'),gameIdDisplay=document.getElementById('game-id-display'),boardContainer=document.getElementById('game-board-container'),playerHandContainer=document.getElementById('player-hand-container'),playerScoresEl=document.getElementById('player-scores'),turnIndicatorEl=document.getElementById('turn-indicator'),placeTilesBtn=document.getElementById('place-tiles-btn'),skipTurnBtn=document.getElementById('skip-turn-btn'),quitGameBtn=document.getElementById('quit-game-btn'),gameLogEl=document.getElementById('game-log'),messageModal=document.getElementById('message-modal'),modalText=document.getElementById('modal-text'),modalCloseBtn=document.getElementById('modal-close-btn'),swapTilesBtn=document.getElementById('swap-tiles-btn'),actionButtonsEl=document.getElementById('action-buttons'),swapConfirmButtonsEl=document.getElementById('swap-confirm-buttons'),confirmSwapBtn=document.getElementById('confirm-swap-btn'),cancelSwapBtn=document.getElementById('cancel-swap-btn');
+        const lobbyEl=document.getElementById('lobby'),gameScreenEl=document.getElementById('game-screen'),usernameInput=document.getElementById('username-input'),createGameBtn=document.getElementById('create-game-btn'),joinGameInput=document.getElementById('join-game-input'),joinGameBtn=document.getElementById('join-game-btn'),lobbyErrorEl=document.getElementById('lobby-error'),gameIdDisplay=document.getElementById('game-id-display'),boardContainer=document.getElementById('game-board-container'),playerHandContainer=document.getElementById('player-hand-container'),playerScoresEl=document.getElementById('player-scores'),turnIndicatorEl=document.getElementById('turn-indicator'),placeTilesBtn=document.getElementById('place-tiles-btn'),skipTurnBtn=document.getElementById('skip-turn-btn'),quitGameBtn=document.getElementById('quit-game-btn'),messageModal=document.getElementById('message-modal'),modalText=document.getElementById('modal-text'),modalCloseBtn=document.getElementById('modal-close-btn'),swapTilesBtn=document.getElementById('swap-tiles-btn'),actionButtonsEl=document.getElementById('action-buttons'),swapConfirmButtonsEl=document.getElementById('swap-confirm-buttons'),confirmSwapBtn=document.getElementById('confirm-swap-btn'),cancelSwapBtn=document.getElementById('cancel-swap-btn');
         let selectedHandTile=null,placedTilesThisTurn=[],isSwapMode=false,tilesToSwap=[];
 
         onAuthStateChanged(auth,user=>{user?currentUser=user:signInAnonymously(auth).catch(error=>{console.error("Anonymous sign-in failed:",error);if(error.code==='auth/configuration-not-found'){const errorMessage="Configuration Error: Anonymous sign-in is not enabled in your Firebase project. Please follow the steps in the code comments to enable it in the Firebase console.";lobbyErrorEl.textContent="Configuration Error. See pop-up for details.";showMessage(errorMessage)}else{lobbyErrorEl.textContent="Could not connect. Please refresh."}})});
@@ -270,7 +259,7 @@
         async function createNewGame(gameRef,hostId,hostName){const{compoundDeck,reactantDeck}=generateInitialDecks();const players={};players[hostId]={id:hostId,score:0,hand:dealHand(compoundDeck,reactantDeck),name:hostName};const board=Array(BOARD_SIZE).fill(null).map(()=>Array(BOARD_SIZE).fill(null));const center=Math.floor(BOARD_SIZE/2);const startingCompoundId=compoundDeck.pop();board[center][center]={tileId:startingCompoundId};const gameData={players:players,playerOrder:[hostId],currentPlayerIndex:0,compoundDeck:compoundDeck,reactantDeck:reactantDeck,board:JSON.stringify(board),status:'waiting',log:[`${hostName} created the game.`]};await setDoc(gameRef,gameData)}
         async function joinGame(gameId,playerName){if(!currentUser)return;currentGameId=gameId;const gameRef=doc(db,"synthetiles-games",gameId);try{const gameDoc=await getDoc(gameRef);if(!gameDoc.exists()){lobbyErrorEl.textContent="Game not found.";return}let gameData=gameDoc.data();if(!gameData.players[currentUser.uid]){if(gameData.playerOrder.length>=4){lobbyErrorEl.textContent="Game is full.";return}const newPlayerHand=dealHand(gameData.compoundDeck,gameData.reactantDeck);const updates={[`players.${currentUser.uid}`]:{id:currentUser.uid,score:0,hand:newPlayerHand,name:playerName},playerOrder:[...gameData.playerOrder,currentUser.uid],compoundDeck:gameData.compoundDeck,reactantDeck:gameData.reactantDeck,log:[...gameData.log,`${playerName} joined the game.`]};if(gameData.playerOrder.length===1){updates.status='in-progress';updates.log.push("The game has started!")}await updateDoc(gameRef,updates)}lobbyEl.classList.add('hidden');gameScreenEl.classList.remove('hidden');if(unsubscribeGame)unsubscribeGame();unsubscribeGame=onSnapshot(gameRef,doc=>{if(doc.exists()){renderGame(doc.data())}else{endGameSession("The game has ended.")}})}catch(error){console.error("Error joining game:",error);lobbyErrorEl.textContent="Could not join game."}}
         
-        function renderGame(gameData){if(!gameData||!currentUser)return;gameIdDisplay.textContent=currentGameId;const boardData=JSON.parse(gameData.board);renderBoard(boardData);const myPlayer=gameData.players[currentUser.uid];if(myPlayer){renderHand(myPlayer.hand)}renderPlayerScores(gameData.players,gameData.playerOrder);updateTurnIndicator(gameData);updateGameLog(gameData.log);const isMyTurn=gameData.playerOrder[gameData.currentPlayerIndex]===currentUser.uid;placeTilesBtn.disabled=!isMyTurn||placedTilesThisTurn.length===0;skipTurnBtn.disabled=!isMyTurn;swapTilesBtn.disabled=!isMyTurn}
+        function renderGame(gameData){if(!gameData||!currentUser)return;gameIdDisplay.textContent=currentGameId;const boardData=JSON.parse(gameData.board);renderBoard(boardData);const myPlayer=gameData.players[currentUser.uid];if(myPlayer){renderHand(myPlayer.hand)}renderPlayerScores(gameData.players,gameData.playerOrder);updateTurnIndicator(gameData);const isMyTurn=gameData.playerOrder[gameData.currentPlayerIndex]===currentUser.uid;placeTilesBtn.disabled=!isMyTurn||placedTilesThisTurn.length===0;skipTurnBtn.disabled=!isMyTurn;swapTilesBtn.disabled=!isMyTurn}
         function renderBoard(boardData){boardContainer.innerHTML='';const center=Math.floor(BOARD_SIZE/2);for(let r=0;r<BOARD_SIZE;r++){for(let c=0;c<BOARD_SIZE;c++){const cell=document.createElement('div');cell.classList.add('board-cell','relative','flex','items-center','justify-center');if(r===center&&c===center){cell.classList.add('center')}cell.dataset.row=r;cell.dataset.col=c;const cellData=boardData[r][c];if(cellData&&cellData.tileId){const tile=createTileElement(cellData.tileId);tile.style.cursor='default';cell.appendChild(tile)}else{cell.addEventListener('click',()=>onBoardCellClick(r,c,cell))}boardContainer.appendChild(cell)}}}
         
         function renderHand(hand) {
@@ -307,7 +296,6 @@
             void turnIndicatorEl.offsetWidth; // Trigger reflow
             turnIndicatorEl.classList.add('turn-change-animation');
         }
-        function updateGameLog(log){gameLogEl.innerHTML='';log.slice().reverse().forEach(entry=>{const p=document.createElement('p');p.textContent=entry;p.className='mb-1';gameLogEl.appendChild(p)});gameLogEl.scrollTop=0}
         
         function createTileElement(tileId){
             const tileData = TILE_DEFINITIONS[tileId];
@@ -320,7 +308,6 @@
             tile.style.backgroundRepeat = 'no-repeat';
             tile.style.backgroundPosition = 'center';
             tile.innerHTML = `
-                <span class="score">${tileData.score}</span>
                 <div class="tile-name">${tileData.name}</div>
             `;
             return tile;
@@ -424,7 +411,7 @@
             const updates = {
                 compoundDeck: newCompoundDeck,
                 reactantDeck: newReactantDeck,
-                [`players.${currentUser.uid}.hand`]: newHand,
+                [`players.${currentUser.uid}.hand`]:newHand,
                 currentPlayerIndex: nextPlayerIndex,
                 log: [...gameData.log, `${player.name} swapped ${tilesToSwap.length} tile(s).`]
             };
@@ -442,7 +429,7 @@
         function validateAndScoreTurn(placedTiles, board) {
             let totalScore = 0;
             let validMoves = 0;
-            let logParts = [];
+            let logEntry = ""; // Changed from logParts to a single string
             let hasConnectionToBoard = false;
             const checkedReactions = new Set(); 
 
@@ -492,7 +479,6 @@
                                 if (reactionCheck === prod.tileId || isFreeReaction) {
                                     const moveScore = TILE_DEFINITIONS[start.tileId].score + TILE_DEFINITIONS[react.tileId].score + TILE_DEFINITIONS[prod.tileId].score;
                                     totalScore += moveScore;
-                                    logParts.push(`formed a reaction for ${moveScore} points`);
                                     checkedReactions.add(reactionKey);
                                     return true;
                                 }
@@ -508,14 +494,13 @@
                     }
                 }
             }
-
-            const logEntry = logParts.length > 0 ? logParts.join(', ') : "played tiles.";
             
-            if (logParts.length > 0) {
+            if (totalScore > 0) {
+                logEntry = `scored ${totalScore} points.`;
                 validMoves = 1;
             } else if (hasConnectionToBoard) {
+                logEntry = "played tiles.";
                 validMoves = 1;
-                totalScore = 0;
             }
 
             return { score: totalScore, validMoves, logEntry };
@@ -532,3 +517,4 @@
     </script>
 </body>
 </html>
+
