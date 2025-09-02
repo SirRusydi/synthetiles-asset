@@ -314,7 +314,43 @@
         waitingGameIdEl.addEventListener('click', () => copyToClipboard(currentGameId));
         modalCloseBtn.addEventListener('click',()=>messageModal.classList.remove('visible'));
         
-        async function createNewGame(gameRef,hostId,hostName){const{compoundDeck,reactantDeck}=generateInitialDecks();const players={};players[hostId]={id:hostId,score:0,hand:dealHand(compoundDeck,reactantDeck),name:hostName};const board=Array(BOARD_SIZE).fill(null).map(()=>Array(BOARD_SIZE).fill(null));const center=Math.floor(BOARD_SIZE/2);const startingCompoundId=compoundDeck.pop();board[center][center]={tileId:startingCompoundId};const gameData={hostId: hostId, players:players,playerOrder:[hostId],currentPlayerIndex:0,compoundDeck:compoundDeck,reactantDeck:reactantDeck,board:JSON.stringify(board),status:'waiting',log:[]};await setDoc(gameRef,gameData)}
+                modalCloseBtn.addEventListener('click',()=>messageModal.classList.remove('visible'));
+        
+        async function createNewGame(gameRef,hostId,hostName){
+            const{compoundDeck,reactantDeck}=generateInitialDecks();
+            const players={};
+            players[hostId]={id:hostId,score:0,hand:dealHand(compoundDeck,reactantDeck),name:hostName};
+            const board=Array(BOARD_SIZE).fill(null).map(()=>Array(BOARD_SIZE).fill(null));
+            const center=Math.floor(BOARD_SIZE/2);
+
+            // --- New logic for selecting a specific starting tile ---
+            const allowedStarters = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C16'];
+            // Find an available starting tile from the deck
+            let startingCompoundId = null;
+            let tileIndexInDeck = -1;
+
+            for(let i = 0; i < allowedStarters.length; i++) {
+                const potentialStarter = allowedStarters[i];
+                const index = compoundDeck.indexOf(potentialStarter);
+                if (index !== -1) {
+                    startingCompoundId = potentialStarter;
+                    tileIndexInDeck = index;
+                    break;
+                }
+            }
+
+            // Fallback to original method if no allowed starters are in the deck for some reason
+            if (!startingCompoundId) {
+                startingCompoundId = compoundDeck.pop();
+            } else {
+                // Remove the chosen starting tile from the deck so it can't be in a player's hand
+                compoundDeck.splice(tileIndexInDeck, 1);
+            }
+
+            board[center][center]={tileId:startingCompoundId};
+            const gameData={hostId: hostId, players:players,playerOrder:[hostId],currentPlayerIndex:0,compoundDeck:compoundDeck,reactantDeck:reactantDeck,board:JSON.stringify(board),status:'waiting',log:[]};
+            await setDoc(gameRef,gameData);
+        }
         async function joinGame(gameId,playerName){if(!currentUser)return;currentGameId=gameId;const gameRef=doc(db,"synthetiles-games",gameId);try{const gameDoc=await getDoc(gameRef);if(!gameDoc.exists()){lobbyErrorEl.textContent="Game not found.";return}let gameData=gameDoc.data();if(!gameData.players[currentUser.uid]){if(gameData.playerOrder.length>=4){lobbyErrorEl.textContent="Game is full.";return}if(gameData.status !== 'waiting'){lobbyErrorEl.textContent="Game has already started.";return}const newPlayerHand=dealHand(gameData.compoundDeck,gameData.reactantDeck);const updates={[`players.${currentUser.uid}`]:{id:currentUser.uid,score:0,hand:newPlayerHand,name:playerName},playerOrder:[...gameData.playerOrder,currentUser.uid],compoundDeck:gameData.compoundDeck,reactantDeck:gameData.reactantDeck,log:[...gameData.log,`${playerName} joined the game.`]};await updateDoc(gameRef,updates)}
             
             lobbyEl.classList.add('hidden');
