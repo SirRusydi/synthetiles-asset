@@ -195,7 +195,7 @@
         <!-- Main Content -->
         <div class="flex flex-col lg:flex-row flex-grow space-y-4 lg:space-y-0 lg:space-x-4 min-h-0">
             <!-- Left Column (Board) -->
-            <div class="flex-grow flex items-center justify-center bg-white p-4 rounded-lg shadow-md overflow-auto">
+            <div class="flex-grow flex bg-white p-4 rounded-lg shadow-md overflow-auto">
                 <div id="game-board-container"></div>
             </div>
 
@@ -249,7 +249,7 @@
         // Firebase Imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp, deleteField } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp, deleteField, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- GAME CONFIGURATION ---
         const TILE_DEFINITIONS = {
@@ -405,16 +405,47 @@
                 turnStartTime: serverTimestamp(),
                 log: [...gameData.log, 'The game has started!']
             });
-             // The onSnapshot listener will handle the screen transition for all players.
         });
 
         
-        function renderGame(gameData){if(!gameData||!currentUser)return;gameIdDisplay.textContent=currentGameId;renderBoard(gameData.board);const myPlayer=gameData.players[currentUser.uid];if(myPlayer){renderHand(myPlayer.hand)}renderPlayerScores(gameData.players,gameData.playerOrder, gameData);updateTurnIndicator(gameData);const isMyTurn=gameData.playerOrder[gameData.currentPlayerIndex]===currentUser.uid && gameData.players[currentUser.uid].timeLeft > 0;placeTilesBtn.disabled=!isMyTurn||placedTilesThisTurn.length===0;skipTurnBtn.disabled=!isMyTurn;swapTilesBtn.disabled=!isMyTurn}
+        function renderGame(gameData){
+            if(!gameData||!currentUser)return;
+            const activePlayers = gameData.playerOrder.filter(pId => gameData.players[pId]);
+            if (gameData.status === 'in-progress' && activePlayers.length < 3 && activePlayers.length > 0) {
+                const gameRef = doc(db, "synthetiles-games", currentGameId);
+                updateDoc(gameRef, { status: 'finished' });
+                return; 
+            }
+
+            gameIdDisplay.textContent=currentGameId;
+            renderBoard(gameData.board);
+            const myPlayer=gameData.players[currentUser.uid];
+            if(myPlayer){
+                renderHand(myPlayer.hand);
+            }
+            renderPlayerScores(gameData.players,gameData.playerOrder, gameData);
+            updateTurnIndicator(gameData);
+            const isMyTurn=gameData.playerOrder[gameData.currentPlayerIndex]===currentUser.uid && gameData.players[currentUser.uid].timeLeft > 0;
+            placeTilesBtn.disabled=!isMyTurn||placedTilesThisTurn.length===0;
+            skipTurnBtn.disabled=!isMyTurn;
+            swapTilesBtn.disabled=!isMyTurn;
+        }
         
         function renderBoard(boardData) {
             boardContainer.innerHTML = '';
-            const coords = Object.keys(boardData).map(key => key.split(',').map(Number));
-            if (coords.length === 0) return; // Empty board
+            const coords = Object.keys(boardData).map(key => {
+                const parts = key.split(',');
+                if (parts.length === 2) {
+                    const x = parseInt(parts[0], 10);
+                    const y = parseInt(parts[1], 10);
+                    if (!isNaN(x) && !isNaN(y)) {
+                        return [x, y];
+                    }
+                }
+                return null;
+            }).filter(c => c !== null);
+
+            if (coords.length === 0) return;
 
             const minX = Math.min(...coords.map(c => c[0]));
             const maxX = Math.max(...coords.map(c => c[0]));
@@ -496,6 +527,8 @@
 
             // Start/Stop timer
             if (playerTimerInterval) clearInterval(playerTimerInterval);
+            if (!gameData.turnStartTime) return;
+
             const currentPlayerId = gameData.playerOrder[gameData.currentPlayerIndex];
             if (currentPlayerId === currentUser.uid && gameData.status === 'in-progress' && players[currentUser.uid].timeLeft > 0) {
                 const turnStartTime = gameData.turnStartTime.toDate();
@@ -524,6 +557,7 @@
             turnIndicatorEl.classList.remove('turn-change-animation');
             const currentPlayerId=gameData.playerOrder[gameData.currentPlayerIndex];            
             const currentPlayer=gameData.players[currentPlayerId];
+            if (!currentPlayer) return;
             if(currentPlayerId===currentUser.uid){
                 turnIndicatorEl.textContent="It's your turn!";
                 turnIndicatorEl.className='text-lg font-semibold p-2 rounded-md bg-green-100 text-green-800';
@@ -644,7 +678,7 @@
         }
 
         function handleP1PowerUp(gameData, powerUpTileId) {
-            const opponents = gameData.playerOrder.filter(id => id !== currentUser.uid);
+            const opponents = gameData.playerOrder.filter(id => id !== currentUser.uid && gameData.players[id].timeLeft > 0);
             if (opponents.length === 0) {
                 showMessage("There are no other players to swap with.");
                 return;
@@ -836,7 +870,7 @@
         }
 
         async function handleP4PowerUp(gameData, powerUpTileId) {
-             const opponents = gameData.playerOrder.filter(id => id !== currentUser.uid);
+             const opponents = gameData.playerOrder.filter(id => id !== currentUser.uid && gameData.players[id].timeLeft > 0);
             if (opponents.length === 0) {
                 showMessage("There are no other players to skip.");
                 return;
@@ -946,7 +980,7 @@
         }
 
 
-        placeTilesBtn.addEventListener('click',async()=>{if(placedTilesThisTurn.length===0)return;placeTilesBtn.disabled=true;const gameRef=doc(db,"synthetiles-games",currentGameId);const gameDoc=await getDoc(gameRef);if(!gameDoc.exists())return;const gameData=gameDoc.data(); let{score,validMoves,logEntry}=validateAndScoreTurn(placedTilesThisTurn,gameData.board);if(validMoves>0){
+        placeTilesBtn.addEventListener('click',async()=>{if(placedTilesThisTurn.length===0)return;placeTilesBtn.disabled=true;const gameRef=doc(db,"synthetiles-games",currentGameId);const gameDoc=await getDoc(gameRef);if(!gameDoc.exists())return;const gameData=gameDoc.data();let{score,validMoves,logEntry}=validateAndScoreTurn(placedTilesThisTurn,gameData.board);if(validMoves>0){
             // Check for P3 power-up
             if(gameData.activePowerUps && gameData.activePowerUps[currentUser.uid] === 'P3') {
                 score *= 2;
@@ -985,28 +1019,25 @@
         });
 
         quitGameBtn.addEventListener('click', async () => {
+            if (!currentGameId) return;
             const gameRef = doc(db, "synthetiles-games", currentGameId);
             const gameDoc = await getDoc(gameRef);
-            if (!gameDoc.exists()) {
-                endGameSession("You left the game.");
-                return;
-            }
 
-            const gameData = gameDoc.data();
-            const updates = {
-                [`players.${currentUser.uid}`]: deleteField(),
-                playerOrder: gameData.playerOrder.filter(id => id !== currentUser.uid)
-            };
+            if (gameDoc.exists()) {
+                const gameData = gameDoc.data();
+                const updates = {
+                    [`players.${currentUser.uid}`]: deleteField(),
+                    playerOrder: gameData.playerOrder.filter(id => id !== currentUser.uid),
+                    log: [...gameData.log, `${gameData.players[currentUser.uid]?.name || 'A player'} left the game.`]
+                };
+
+                if (updates.playerOrder.length === 0) {
+                    await deleteDoc(gameRef);
+                } else {
+                    await updateDoc(gameRef, updates);
+                }
+            }
             
-            const remainingPlayers = updates.playerOrder.length;
-            if (remainingPlayers > 0 && remainingPlayers < 3) {
-                updates.status = 'finished';
-                updates.log = [...gameData.log, `${gameData.players[currentUser.uid].name} left the game. Game has ended.`];
-            } else {
-                 updates.log = [...gameData.log, `${gameData.players[currentUser.uid].name} left the game.`];
-            }
-
-            await updateDoc(gameRef, updates);
             endGameSession("You left the game.");
         });
         
@@ -1163,7 +1194,7 @@
             return { score: totalScore, validMoves, logEntry };
         }
 
-        function getNeighbors(x,y,board,placedThisTurn=[]){const neighbors=[],directions=[{x:-1,y:0},{x:1,y:0},{x:0,y:-1},{x:0,y:1}];for(const dir of directions){const nx=x+dir.x,ny=y+dir.y;const coordKey=`${nx},${ny}`;let tile=board[coordKey];if(!tile){const placed=placedThisTurn.find(p=>p.x===nx&&p.y===ny);if(placed)tile={tileId:placed.tileId}}neighbors.push({tile,pos:{x:nx,y:ny}})}return neighbors}
+        function getNeighbors(x,y,board,placedThisTurn=[]){const neighbors=[],directions=[{x:-1,y:0},{x:1,y:0},{x:0,y:-1},{x:0,y:1}];for(const dir of directions){const nx=x+dir.x,ny=y+dir.y;const coordKey=`${nx},${ny}`;let tile=board[coordKey];if(!tile){const placed=placedThisTurn.find(p=>p.x===nx&&p.y===ny);if(placed)tile={tileId:placed.tileId}}neighbors.push({tile,pos:{x:nx,y:ny}})}}return neighbors}
         function findTileAt(x,y,board,placedThisTurn=[]){const coordKey=`${x},${y}`;let tile=board[coordKey];if(!tile){const placed=placedThisTurn.find(p=>p.x===x&&p.y===y);if(placed)tile={tileId:placed.tileId}}return tile}
         
         function generateGameId(){return Math.random().toString(36).substring(2,7).toUpperCase()}
