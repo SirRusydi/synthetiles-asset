@@ -318,7 +318,6 @@
             const players={};
             players[hostId]={id:hostId,score:0,hand:dealHand(compoundDeck,reactantDeck),name:hostName, timeLeft: PLAYER_TOTAL_TIME};
             
-            // Infinite board: starts as an object with one tile at "0,0"
             const board = {};
             const allowedStarters = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C16'];
             let startingCompoundId = null;
@@ -425,7 +424,7 @@
             }
             renderPlayerScores(gameData.players,gameData.playerOrder, gameData);
             updateTurnIndicator(gameData);
-            const isMyTurn = gameData.playerOrder[gameData.currentPlayerIndex] === currentUser.uid && myPlayer.timeLeft > 0;
+            const isMyTurn = myPlayer && gameData.playerOrder[gameData.currentPlayerIndex] === currentUser.uid && myPlayer.timeLeft > 0;
             placeTilesBtn.disabled=!isMyTurn||placedTilesThisTurn.length===0;
             skipTurnBtn.disabled=!isMyTurn;
             swapTilesBtn.disabled=!isMyTurn;
@@ -1021,6 +1020,7 @@
             } else {
                 showMessage("Incorrect combination, you lose a turn.");
                 const player = gameData.players[currentUser.uid];
+                renderGame(gameData); // Re-render to put tiles back visually
                 await updateDoc(gameRef, {
                     log: [...gameData.log, `${player.name} made an incorrect move and lost their turn.`]
                 });
@@ -1055,6 +1055,17 @@
                 };
 
                 await updateDoc(gameRef, updates);
+
+                // After updating, check if the game should end
+                const remainingPlayers = updates.playerOrder.length;
+                if (remainingPlayers > 0 && remainingPlayers < 3) {
+                     await updateDoc(gameRef, { 
+                        status: 'finished',
+                        log: [...updates.log, 'Game ended due to not enough players.']
+                     });
+                } else if (remainingPlayers === 0) {
+                    await deleteDoc(gameRef);
+                }
             }
             
             endGameSession("You left the game.");
@@ -1140,7 +1151,7 @@
             const checkedReactions = new Set(); 
             const boardKeys = Object.keys(board);
 
-            const isFirstMove = boardKeys.length <= 1;
+            const isFirstMove = boardKeys.length <= 1 && placedTiles.length > 0;
             if (isFirstMove) {
                 hasConnectionToBoard = true;
             } else {
@@ -1205,28 +1216,18 @@
             if (totalScore > 0) {
                 logEntry = `scored ${totalScore} points.`;
                 validMoves = 1;
+            } else if (isFirstMove) {
+                logEntry = "played the first tile.";
+                validMoves = 1; 
             } else if (hasConnectionToBoard && placedTiles.length > 0) {
-                logEntry = "played tiles.";
-                validMoves = 1; // It's a valid move to place tiles, even with 0 score
+                validMoves = 0; // Invalid move if it connects but doesn't score
             }
 
             return { score: totalScore, validMoves, logEntry };
         }
 
-        function getNeighbors(x,y,board,placedThisTurn=[]){
-    const neighbors=[],directions=[{x:-1,y:0},{x:1,y:0},{x:0,y:-1},{x:0,y:1}];
-    for(const dir of directions){
-        const nx=x+dir.x,ny=y+dir.y;
-        const coordKey=`${nx},${ny}`;
-        let tile=board[coordKey];
-        if(!tile){
-            const placed=placedThisTurn.find(p=>p.x===nx&&p.y===ny);
-            if(placed)tile={tileId:placed.tileId};
-        }
-        neighbors.push({tile,pos:{x:nx,y:ny}});
-    }
-    return neighbors;
-}
+        function getNeighbors(x,y,board,placedThisTurn=[]){const neighbors=[],directions=[{x:-1,y:0},{x:1,y:0},{x:0,y:-1},{x:0,y:1}];for(const dir of directions){const nx=x+dir.x,ny=y+dir.y;const coordKey=`${nx},${ny}`;let tile=board[coordKey];if(!tile){const placed=placedThisTurn.find(p=>p.x===nx&&p.y===ny);if(placed)tile={tileId:placed.tileId}}neighbors.push({tile,pos:{x:nx,y:ny}})}}return neighbors}
+        function findTileAt(x,y,board,placedThisTurn=[]){const coordKey=`${x},${y}`;let tile=board[coordKey];if(!tile){const placed=placedThisTurn.find(p=>p.x===x&&p.y===y);if(placed)tile={tileId:placed.tileId}}return tile}
         
         function generateGameId(){return Math.random().toString(36).substring(2,7).toUpperCase()}
         function generateInitialDecks(){let compoundDeck=[],reactantDeck=[];for(const tileId in TILE_DEFINITIONS){const tile=TILE_DEFINITIONS[tileId];if(tile.type==='compound'){for(let i=0;i<2;i++)compoundDeck.push(tileId)}else if(tile.type==='reactant'||tile.type==='powerup'){for(let i=0;i<2;i++)reactantDeck.push(tileId)}}return{compoundDeck:shuffleArray(compoundDeck),reactantDeck:shuffleArray(reactantDeck)}}
