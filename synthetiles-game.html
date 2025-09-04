@@ -12,8 +12,8 @@
             overflow: hidden; /* Prevent scrolling */
         }
         .tile {
-            width: 90px;
-            height: 90px;
+            width: 90px; /* 1.5x original size */
+            height: 90px; /* 1.5x original size */
             border: 1px solid #9CA3AF;
             background-color: #F3F4F6;
             display: flex;
@@ -36,15 +36,17 @@
             border: 2px solid #F59E0B;
             box-shadow: 0 0 10px #F59E0B;
         }
+        /* Style for tiles inside a modal for selection */
         .modal-tile-selection .tile {
             margin: 5px;
         }
+        /* Tooltip for tile name */
         .tile .tile-name {
             position: absolute;
-            bottom: 105%;
+            bottom: 105%; /* Position it just above the tile */
             left: 50%;
             transform: translateX(-50%);
-            background-color: #1F2937;
+            background-color: #1F2937; /* dark gray */
             color: white;
             padding: 4px 8px;
             border-radius: 6px;
@@ -55,19 +57,20 @@
             opacity: 0;
             transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
             z-index: 10;
-            pointer-events: none;
+            pointer-events: none; /* So it doesn't interfere with clicks on the tile */
         }
+
         .tile:hover .tile-name {
             visibility: visible;
             opacity: 1;
         }
         .board-cell {
-            width: 95px;
-            height: 95px;
+            width: 95px; /* Accommodate larger tiles */
+            height: 95px; /* Accommodate larger tiles */
             border: 1px dashed #D1D5DB;
             background-color: #fff;
             border-radius: 8px;
-            flex-shrink: 0;
+            flex-shrink: 0; /* Prevent cells from shrinking */
         }
         .board-cell.center::before {
             content: '★';
@@ -84,6 +87,7 @@
         #game-board-container {
             display: grid;
         }
+        /* Custom modal styles */
         .modal-backdrop {
             position: fixed;
             top: 0;
@@ -116,6 +120,8 @@
         .modal-backdrop.visible .modal-content {
             transform: scale(1);
         }
+
+        /* Animations */
         @keyframes pop-in {
             0% { transform: scale(0.5); opacity: 0; }
             100% { transform: scale(1); opacity: 1; }
@@ -123,6 +129,7 @@
         .tile-placed {
             animation: pop-in 0.3s ease-out;
         }
+        
         @keyframes slide-down-fade-in {
             0% { opacity: 0; transform: translateY(-20px); }
             100% { opacity: 1; transform: translateY(0); }
@@ -130,9 +137,11 @@
         .turn-change-animation {
             animation: slide-down-fade-in 0.5s ease-out;
         }
+
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 flex items-center justify-center h-screen">
+
     <!-- Lobby Screen -->
     <div id="lobby" class="text-center bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
         <h1 class="text-4xl font-bold text-blue-600 mb-2">Synthetiles</h1>
@@ -156,8 +165,12 @@
             <p class="text-sm text-gray-500">Game ID</p>
             <p id="waiting-game-id" class="text-4xl font-mono tracking-widest bg-gray-100 p-3 rounded-lg cursor-pointer" title="Click to copy"></p>
         </div>
+        
         <h2 class="text-xl font-bold mb-3">Players Joined</h2>
-        <div id="waiting-player-list" class="space-y-2 mb-6 min-h-[100px]"></div>
+        <div id="waiting-player-list" class="space-y-2 mb-6 min-h-[100px]">
+            <!-- Player names will be dynamically inserted here -->
+        </div>
+
         <div id="host-controls" class="hidden">
             <button id="start-game-btn" disabled class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed">
                 Start Game (Need 3 players)
@@ -178,16 +191,23 @@
             </div>
             <div id="turn-indicator" class="text-lg font-semibold p-2 rounded-md"></div>
         </div>
+
         <!-- Main Content -->
         <div class="flex flex-col lg:flex-row flex-grow space-y-4 lg:space-y-0 lg:space-x-4 min-h-0">
+            <!-- Left Column (Board) -->
             <div class="flex-grow flex bg-white p-4 rounded-lg shadow-md overflow-auto">
                 <div id="game-board-container"></div>
             </div>
+
+            <!-- Right Column (Info, Hand, Actions) -->
             <div class="w-full lg:w-1/3 bg-white p-4 rounded-lg shadow-md flex flex-col space-y-4 overflow-y-auto">
+                <!-- Player Info -->
                 <div>
                     <h2 class="text-xl font-bold mb-2 border-b pb-2">Players</h2>
                     <div id="player-scores" class="space-y-2"></div>
                 </div>
+
+                <!-- Player Hand -->
                 <div id="player-hand-container">
                     <div class="mb-2">
                         <h4 class="font-semibold text-sm text-gray-600">Compounds</h4>
@@ -198,6 +218,8 @@
                         <div id="reactant-hand" class="flex player-hand min-h-[65px] flex-wrap"></div>
                     </div>
                 </div>
+
+                <!-- Action Buttons -->
                 <div id="action-buttons" class="flex flex-col space-y-2">
                     <button id="place-tiles-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-5 rounded-lg transition disabled:bg-gray-400">Place Tiles</button>
                     <div class="flex space-x-2">
@@ -221,6 +243,7 @@
             <button id="modal-close-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg">OK</button>
         </div>
     </div>
+
 
     <script type="module">
         // Firebase Imports
@@ -402,7 +425,7 @@
             }
             renderPlayerScores(gameData.players,gameData.playerOrder, gameData);
             updateTurnIndicator(gameData);
-            const isMyTurn=gameData.playerOrder[gameData.currentPlayerIndex]===currentUser.uid && gameData.players[currentUser.uid].timeLeft > 0;
+            const isMyTurn = gameData.playerOrder[gameData.currentPlayerIndex] === currentUser.uid && myPlayer.timeLeft > 0;
             placeTilesBtn.disabled=!isMyTurn||placedTilesThisTurn.length===0;
             skipTurnBtn.disabled=!isMyTurn;
             swapTilesBtn.disabled=!isMyTurn;
@@ -504,7 +527,7 @@
 
             // Start/Stop timer
             if (playerTimerInterval) clearInterval(playerTimerInterval);
-            if (!gameData.turnStartTime) return;
+            if (!gameData || !gameData.turnStartTime) return;
 
             const currentPlayerId = gameData.playerOrder[gameData.currentPlayerIndex];
             if (currentPlayerId === currentUser.uid && gameData.status === 'in-progress' && players[currentUser.uid].timeLeft > 0) {
@@ -660,22 +683,26 @@
                 showMessage("There are no other players to swap with.");
                 return;
             }
+
             let buttonsHtml = opponents.map(oppId => {
                 const opponent = gameData.players[oppId];
                 return `<button data-player-id="${oppId}" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded my-1">${opponent.name}</button>`;
             }).join('');
+
             modalText.innerHTML = `
                 <h3 class="text-xl font-bold mb-4">P1: Swap With Player</h3>
                 <p class="mb-4">Choose an opponent to swap a random tile with. This does not end your turn.</p>
                 ${buttonsHtml}
             `;
+            
             modalText.querySelectorAll('button').forEach(button => {
                 button.addEventListener('click', () => {
                     const targetPlayerId = button.dataset.playerId;
                     promptForPlayerTileToSwap(gameData, targetPlayerId, powerUpTileId);
                 });
             });
-            messageModal.classList.add('visible'); // FIXED: show modal
+
+            showMessage(""); // Show modal with custom HTML
         }
 
         function promptForPlayerTileToSwap(gameData, targetPlayerId, powerUpTileId) {
@@ -745,19 +772,24 @@
         }
 
         function handleP2PowerUp(gameData, powerUpTileId) {
-            const player = gameData.players[currentUser.uid];
+             const player = gameData.players[currentUser.uid];
             const swappableHand = player.hand.filter(id => id !== powerUpTileId);
-            isSwapMode = true;
-            tilesToSwap = [];
+
+            isSwapMode = true; // Enter swap mode for P2
+            tilesToSwap = []; // Reset selection
+
             let tilesHtml = swappableHand.map(tileId => {
                 return `<div class="inline-block" data-tile-id="${tileId}">${createTileElement(tileId).outerHTML}</div>`;
             }).join('');
+
             modalText.innerHTML = `
                 <h3 class="text-xl font-bold mb-4">P2: Swap From Pile</h3>
                 <p class="mb-4">Select tiles to exchange with the pile. This won't end your turn.</p>
                 <div class="flex flex-wrap justify-center modal-tile-selection">${tilesHtml}</div>
                 <button id="p2-confirm-btn" class="mt-4 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-5 rounded-lg">Confirm Swap</button>
             `;
+            
+            // Add click listeners to tiles in the modal
             modalText.querySelectorAll('.tile').forEach(tileEl => {
                 tileEl.addEventListener('click', () => {
                     tileEl.classList.toggle('swap-selected');
@@ -770,13 +802,15 @@
                     }
                 });
             });
+
             document.getElementById('p2-confirm-btn').addEventListener('click', async () => {
                 await executeP2Swap(gameData, powerUpTileId, tilesToSwap);
                 isSwapMode = false;
                 tilesToSwap = [];
                 messageModal.classList.remove('visible');
             });
-            messageModal.classList.add('visible'); // FIXED: show modal
+
+            showMessage(""); // Show the modal
         }
 
         async function executeP2Swap(gameData, powerUpTileId, tilesToSwap) {
@@ -835,33 +869,36 @@
             showMessage("Double Points activated! Your next score this turn will be doubled.");
         }
 
-        function handleP4PowerUp(gameData, powerUpTileId) {
-            const opponents = gameData.playerOrder.filter(id => id !== currentUser.uid && gameData.players[id].timeLeft > 0);
+        async function handleP4PowerUp(gameData, powerUpTileId) {
+             const opponents = gameData.playerOrder.filter(id => id !== currentUser.uid && gameData.players[id].timeLeft > 0);
             if (opponents.length === 0) {
                 showMessage("There are no other players to skip.");
                 return;
             }
+
             let buttonsHtml = opponents.map(oppId => {
                 const opponent = gameData.players[oppId];
                 return `<button data-player-id="${oppId}" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded my-1">${opponent.name}</button>`;
             }).join('');
+
             modalText.innerHTML = `
                 <h3 class="text-xl font-bold mb-4">P4: Skip Player</h3>
                 <p class="mb-4">Choose an opponent to skip their next turn. This will end your turn.</p>
                 ${buttonsHtml}
             `;
+            
             modalText.querySelectorAll('button').forEach(button => {
                 button.addEventListener('click', async () => {
                     const targetPlayerId = button.dataset.playerId;
                     await executeP4Skip(gameData, powerUpTileId, targetPlayerId);
                 });
             });
-            messageModal.classList.add('visible'); // FIXED: show modal
+            
+            showMessage("");
         }
         
         async function executeP4Skip(gameData, powerUpTileId, targetPlayerId) {
             const player = gameData.players[currentUser.uid];
-            const target = gameData.players[targetPlayerId];
             
             let newHand = player.hand.filter(id => id !== powerUpTileId);
             let newReactantDeck = [...gameData.reactantDeck];
@@ -873,7 +910,7 @@
                 [`players.${currentUser.uid}.hand`]: newHand,
                 reactantDeck: newReactantDeck,
                 skippedPlayers: [...(gameData.skippedPlayers || []), targetPlayerId],
-                log: [...gameData.log, `${player.name} used a power-up to make ${target.name} skip a turn.`]
+                log: [...gameData.log, `${player.name} used a power-up to make ${gameData.players[targetPlayerId].name} skip a turn.`]
             };
 
             await updateDoc(doc(db, "synthetiles-games", currentGameId), updates);
@@ -942,32 +979,55 @@
         }
 
 
-        placeTilesBtn.addEventListener('click',async()=>{if(placedTilesThisTurn.length===0)return;placeTilesBtn.disabled=true;const gameRef=doc(db,"synthetiles-games",currentGameId);const gameDoc=await getDoc(gameRef);if(!gameDoc.exists())return;const gameData=gameDoc.data();let{score,validMoves,logEntry}=validateAndScoreTurn(placedTilesThisTurn,gameData.board);if(validMoves>0){
-            // Check for P3 power-up
-            if(gameData.activePowerUps && gameData.activePowerUps[currentUser.uid] === 'P3') {
-                score *= 2;
-                logEntry += ` (x2 score!)`;
-            }
+        placeTilesBtn.addEventListener('click',async()=>{
+            if(placedTilesThisTurn.length===0)return;
+            placeTilesBtn.disabled=true;
+            const gameRef=doc(db,"synthetiles-games",currentGameId);
+            const gameDoc=await getDoc(gameRef);
+            if(!gameDoc.exists())return;
+            const gameData=gameDoc.data();
+            let{score,validMoves,logEntry}=validateAndScoreTurn(placedTilesThisTurn,gameData.board);
+            
+            if(validMoves>0){
+                // Check for P3 power-up
+                if(gameData.activePowerUps && gameData.activePowerUps[currentUser.uid] === 'P3') {
+                    score *= 2;
+                    logEntry += ` (x2 score!)`;
+                }
 
-            const newBoard = {...gameData.board};
-            placedTilesThisTurn.forEach(p => {
-                const coordKey = `${p.x},${p.y}`;
-                newBoard[coordKey] = { tileId: p.tileId };
-            });
-            const player=gameData.players[currentUser.uid];const placedTileIds=placedTilesThisTurn.map(p=>p.tileId);let newHand=player.hand.filter(id=>!placedTileIds.includes(id));const newCompoundDeck=[...gameData.compoundDeck];const newReactantDeck=[...gameData.reactantDeck];placedTileIds.forEach(id=>{const tileType=TILE_DEFINITIONS[id].type;if(tileType==='compound'&&newCompoundDeck.length>0){newHand.push(newCompoundDeck.pop())}else if((tileType==='reactant'||tileType==='powerup')&&newReactantDeck.length>0){newHand.push(newReactantDeck.pop())}});
-            
-            const updates={board:newBoard,compoundDeck:newCompoundDeck,reactantDeck:newReactantDeck,[`players.${currentUser.uid}.hand`]:newHand,[`players.${currentUser.uid}.score`]:player.score+score,log:[...gameData.log,`${player.name} ${logEntry}`]};
-            
-            // Clear active powerup after use
-            if(gameData.activePowerUps && gameData.activePowerUps[currentUser.uid]) {
-                updates[`activePowerUps.${currentUser.uid}`] = null;
-            }
+                const newBoard = {...gameData.board};
+                placedTilesThisTurn.forEach(p => {
+                    const coordKey = `${p.x},${p.y}`;
+                    newBoard[coordKey] = { tileId: p.tileId };
+                });
+                const player=gameData.players[currentUser.uid];
+                const placedTileIds=placedTilesThisTurn.map(p=>p.tileId);
+                let newHand=player.hand.filter(id=>!placedTileIds.includes(id));
+                const newCompoundDeck=[...gameData.compoundDeck];
+                const newReactantDeck=[...gameData.reactantDeck];
+                placedTileIds.forEach(id=>{const tileType=TILE_DEFINITIONS[id].type;if(tileType==='compound'&&newCompoundDeck.length>0){newHand.push(newCompoundDeck.pop())}else if((tileType==='reactant'||tileType==='powerup')&&newReactantDeck.length>0){newHand.push(newReactantDeck.pop())}});
+                
+                const updates={board:newBoard,compoundDeck:newCompoundDeck,reactantDeck:newReactantDeck,[`players.${currentUser.uid}.hand`]:newHand,[`players.${currentUser.uid}.score`]:player.score+score,log:[...gameData.log,`${player.name} ${logEntry}`]};
+                
+                // Clear active powerup after use
+                if(gameData.activePowerUps && gameData.activePowerUps[currentUser.uid]) {
+                    updates[`activePowerUps.${currentUser.uid}`] = null;
+                }
 
-            await updateDoc(gameRef,updates);
-            
-            const updatedGameDoc = await getDoc(gameRef);
-            await advanceTurn(updatedGameDoc.data());
-        }else{showMessage("Invalid move. A reaction must be formed with an existing tile.");renderGame(gameData)}placedTilesThisTurn=[]});
+                await updateDoc(gameRef,updates);
+                
+                const updatedGameDoc = await getDoc(gameRef);
+                await advanceTurn(updatedGameDoc.data());
+            } else {
+                showMessage("Incorrect combination, you lose a turn.");
+                const player = gameData.players[currentUser.uid];
+                await updateDoc(gameRef, {
+                    log: [...gameData.log, `${player.name} made an incorrect move and lost their turn.`]
+                });
+                await advanceTurn(gameData);
+            }
+            placedTilesThisTurn=[];
+        });
         
         skipTurnBtn.addEventListener('click',async()=>{
             const gameRef=doc(db,"synthetiles-games",currentGameId);
@@ -987,17 +1047,14 @@
 
             if (gameDoc.exists()) {
                 const gameData = gameDoc.data();
+                const playerName = gameData.players[currentUser.uid]?.name || 'A player';
                 const updates = {
                     [`players.${currentUser.uid}`]: deleteField(),
                     playerOrder: gameData.playerOrder.filter(id => id !== currentUser.uid),
-                    log: [...gameData.log, `${gameData.players[currentUser.uid]?.name || 'A player'} left the game.`]
+                    log: [...gameData.log, `${playerName} left the game.`]
                 };
 
-                if (updates.playerOrder.length === 0) {
-                    await deleteDoc(gameRef);
-                } else {
-                    await updateDoc(gameRef, updates);
-                }
+                await updateDoc(gameRef, updates);
             }
             
             endGameSession("You left the game.");
@@ -1148,30 +1205,28 @@
             if (totalScore > 0) {
                 logEntry = `scored ${totalScore} points.`;
                 validMoves = 1;
-            } else if (hasConnectionToBoard) {
+            } else if (hasConnectionToBoard && placedTiles.length > 0) {
                 logEntry = "played tiles.";
-                validMoves = 1;
+                validMoves = 1; // It's a valid move to place tiles, even with 0 score
             }
 
             return { score: totalScore, validMoves, logEntry };
         }
 
-                function getNeighbors(x, y, board, placedThisTurn = []) {
-            const neighbors = [];
-            const directions = [{ x: -1, y: 0 }, { x: 1, y: 0 }, { x: 0, y: -1 }, { x: 0, y: 1 }];
-            for (const dir of directions) {
-                const nx = x + dir.x, ny = y + dir.y;
-                const coordKey = `${nx},${ny}`;
-                let tile = board[coordKey];
-                if (!tile) {
-                    const placed = placedThisTurn.find(p => p.x === nx && p.y === ny);
-                    if (placed) tile = { tileId: placed.tileId };
-                }
-                neighbors.push({ tile, pos: { x: nx, y: ny } });
-            }
-            return neighbors;
+        function getNeighbors(x,y,board,placedThisTurn=[]){
+    const neighbors=[],directions=[{x:-1,y:0},{x:1,y:0},{x:0,y:-1},{x:0,y:1}];
+    for(const dir of directions){
+        const nx=x+dir.x,ny=y+dir.y;
+        const coordKey=`${nx},${ny}`;
+        let tile=board[coordKey];
+        if(!tile){
+            const placed=placedThisTurn.find(p=>p.x===nx&&p.y===ny);
+            if(placed)tile={tileId:placed.tileId};
         }
-        function findTileAt(x,y,board,placedThisTurn=[]){const coordKey=`${x},${y}`;let tile=board[coordKey];if(!tile){const placed=placedThisTurn.find(p=>p.x===x&&p.y===y);if(placed)tile={tileId:placed.tileId}}return tile}
+        neighbors.push({tile,pos:{x:nx,y:ny}});
+    }
+    return neighbors;
+}
         
         function generateGameId(){return Math.random().toString(36).substring(2,7).toUpperCase()}
         function generateInitialDecks(){let compoundDeck=[],reactantDeck=[];for(const tileId in TILE_DEFINITIONS){const tile=TILE_DEFINITIONS[tileId];if(tile.type==='compound'){for(let i=0;i<2;i++)compoundDeck.push(tileId)}else if(tile.type==='reactant'||tile.type==='powerup'){for(let i=0;i<2;i++)reactantDeck.push(tileId)}}return{compoundDeck:shuffleArray(compoundDeck),reactantDeck:shuffleArray(reactantDeck)}}
@@ -1179,9 +1234,11 @@
         function dealHand(compoundDeck,reactantDeck){const hand=[];for(let i=0;i<5;i++){if(compoundDeck.length>0)hand.push(compoundDeck.pop());if(reactantDeck.length>0)hand.push(reactantDeck.pop())}return hand}
         
         function formatTime(seconds) {
-            const safeSeconds = Math.max(0, seconds);
-            const minutes = Math.floor(safeSeconds / 60);
-            const remainingSeconds = Math.floor(safeSeconds % 60);
+            if (typeof seconds !== 'number' || seconds < 0) {
+                seconds = 0;
+            }
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = Math.floor(seconds % 60);
             return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
         }
 
@@ -1191,8 +1248,7 @@
         }
 
         function showWinner(gameData) {
-            const playersRanked = gameData.playerOrder
-                .map(pId => gameData.players[pId])
+            const playersRanked = Object.values(gameData.players)
                 .sort((a, b) => b.score - a.score);
 
             let rankedListHtml = playersRanked.map((player, index) => {
