@@ -407,28 +407,30 @@
         });
 
         
-        function renderGame(gameData){
-            if(!gameData||!currentUser)return;
-            const activePlayers = gameData.playerOrder.filter(pId => gameData.players[pId]);
-            if (gameData.status === 'in-progress' && activePlayers.length < 3 && activePlayers.length > 0) {
-                const gameRef = doc(db, "synthetiles-games", currentGameId);
-                updateDoc(gameRef, { status: 'finished' });
-                return; 
-            }
+function renderGame(gameData) {
+    if (!gameData || !currentUser) return;
+    
+    const activePlayers = gameData.playerOrder.filter(pId => gameData.players[pId]);
+    if (gameData.status === 'in-progress' && activePlayers.length < 3 && activePlayers.length > 0) {
+        const gameRef = doc(db, "synthetiles-games", currentGameId);
+        updateDoc(gameRef, { status: 'finished' });
+        return; 
+    }
 
-            gameIdDisplay.textContent=currentGameId;
-            renderBoard(gameData.board);
-            const myPlayer=gameData.players[currentUser.uid];
-            if(myPlayer){
-                renderHand(myPlayer.hand);
-            }
-            renderPlayerScores(gameData.players,gameData.playerOrder, gameData);
-            updateTurnIndicator(gameData);
-            const isMyTurn = myPlayer && gameData.playerOrder[gameData.currentPlayerIndex] === currentUser.uid && myPlayer.timeLeft > 0;
-            placeTilesBtn.disabled=!isMyTurn||placedTilesThisTurn.length===0;
-            skipTurnBtn.disabled=!isMyTurn;
-            swapTilesBtn.disabled=!isMyTurn;
-        }
+    const myPlayer = gameData.players[currentUser.uid];
+    if (!myPlayer) return; // Add this check
+
+    gameIdDisplay.textContent = currentGameId;
+    renderBoard(gameData.board);
+    renderHand(myPlayer.hand);
+    renderPlayerScores(gameData.players, gameData.playerOrder, gameData);
+    updateTurnIndicator(gameData);
+    
+    const isMyTurn = gameData.playerOrder[gameData.currentPlayerIndex] === currentUser.uid && myPlayer.timeLeft > 0;
+    placeTilesBtn.disabled = !isMyTurn || placedTilesThisTurn.length === 0;
+    skipTurnBtn.disabled = !isMyTurn;
+    swapTilesBtn.disabled = !isMyTurn;
+}
         
         function renderBoard(boardData) {
             boardContainer.innerHTML = '';
@@ -1226,8 +1228,41 @@
             return { score: totalScore, validMoves, logEntry };
         }
 
-        function getNeighbors(x,y,board,placedThisTurn=[]){const neighbors=[],directions=[{x:-1,y:0},{x:1,y:0},{x:0,y:-1},{x:0,y:1}];for(const dir of directions){const nx=x+dir.x,ny=y+dir.y;const coordKey=`${nx},${ny}`;let tile=board[coordKey];if(!tile){const placed=placedThisTurn.find(p=>p.x===nx&&p.y===ny);if(placed)tile={tileId:placed.tileId}}neighbors.push({tile,pos:{x:nx,y:ny}})}}return neighbors}
-        function findTileAt(x,y,board,placedThisTurn=[]){const coordKey=`${x},${y}`;let tile=board[coordKey];if(!tile){const placed=placedThisTurn.find(p=>p.x===x&&p.y===y);if(placed)tile={tileId:placed.tileId}}return tile}
+function getNeighbors(x, y, board, placedThisTurn=[]) {
+    const neighbors = [];
+    const directions = [{x:-1,y:0}, {x:1,y:0}, {x:0,y:-1}, {x:0,y:1}];
+    
+    for (const dir of directions) {
+        const nx = x + dir.x;
+        const ny = y + dir.y;
+        const coordKey = `${nx},${ny}`;
+        let tile = board[coordKey];
+        
+        if (!tile) {
+            const placed = placedThisTurn.find(p => p.x === nx && p.y === ny);
+            if (placed) {
+                tile = {tileId: placed.tileId};
+            }
+        }
+        
+        neighbors.push({tile, pos: {x: nx, y: ny}});
+    }
+    
+    return neighbors;
+}
+        function findTileAt(x, y, board, placedThisTurn=[]) {
+    const coordKey = `${x},${y}`;
+    let tile = board[coordKey];
+    
+    if (!tile) {
+        const placed = placedThisTurn.find(p => p.x === x && p.y === y);
+        if (placed) {
+            tile = {tileId: placed.tileId};
+        }
+    }
+    
+    return tile;
+}
         
         function generateGameId(){return Math.random().toString(36).substring(2,7).toUpperCase()}
         function generateInitialDecks(){let compoundDeck=[],reactantDeck=[];for(const tileId in TILE_DEFINITIONS){const tile=TILE_DEFINITIONS[tileId];if(tile.type==='compound'){for(let i=0;i<2;i++)compoundDeck.push(tileId)}else if(tile.type==='reactant'||tile.type==='powerup'){for(let i=0;i<2;i++)reactantDeck.push(tileId)}}return{compoundDeck:shuffleArray(compoundDeck),reactantDeck:shuffleArray(reactantDeck)}}
@@ -1235,13 +1270,13 @@
         function dealHand(compoundDeck,reactantDeck){const hand=[];for(let i=0;i<5;i++){if(compoundDeck.length>0)hand.push(compoundDeck.pop());if(reactantDeck.length>0)hand.push(reactantDeck.pop())}return hand}
         
         function formatTime(seconds) {
-            if (typeof seconds !== 'number' || seconds < 0) {
-                seconds = 0;
-            }
-            const minutes = Math.floor(seconds / 60);
-            const remainingSeconds = Math.floor(seconds % 60);
-            return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+        if (typeof seconds !== 'number' || seconds < 0) {
+        seconds = 0;
         }
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = Math.floor(seconds % 60);
+        return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+    }
 
         function isPlayerTurn() {
             const turnIndicator = document.getElementById('turn-indicator');
