@@ -12,8 +12,8 @@
             overflow: hidden; /* Prevent scrolling */
         }
         .tile {
-            width: 90px; /* 1.5x original size */
-            height: 90px; /* 1.5x original size */
+            width: 90px;
+            height: 90px;
             border: 1px solid #9CA3AF;
             background-color: #F3F4F6;
             display: flex;
@@ -314,57 +314,69 @@
         modalCloseBtn.addEventListener('click',()=>messageModal.classList.remove('visible'));
         
         async function createNewGame(gameRef,hostId,hostName){
-            const{compoundDeck,reactantDeck}=generateInitialDecks();
             const players={};
-            players[hostId]={id:hostId,score:0,hand:dealHand(compoundDeck,reactantDeck),name:hostName, timeLeft: PLAYER_TOTAL_TIME};
+            players[hostId]={id:hostId,score:0,hand:dealHand(),name:hostName, timeLeft: PLAYER_TOTAL_TIME};
             
             const board = {};
             const allowedStarters = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C16'];
-            let startingCompoundId = null;
-            let tileIndexInDeck = -1;
-
-            for(let i = 0; i < allowedStarters.length; i++) {
-                const potentialStarter = allowedStarters[i];
-                const index = compoundDeck.indexOf(potentialStarter);
-                if (index !== -1) {
-                    startingCompoundId = potentialStarter;
-                    tileIndexInDeck = index;
-                    break;
-                }
-            }
-            if (!startingCompoundId) {
-                startingCompoundId = compoundDeck.pop();
-            } else {
-                compoundDeck.splice(tileIndexInDeck, 1);
-            }
+            
+            let startingCompoundId = allowedStarters[Math.floor(Math.random() * allowedStarters.length)];
+            
             board["0,0"] = {tileId: startingCompoundId};
 
-            const gameData={hostId: hostId, players:players,playerOrder:[hostId],currentPlayerIndex:0,compoundDeck:compoundDeck,reactantDeck:reactantDeck,board:board,status:'waiting',log:[], activePowerUps: {}, skippedPlayers: [], turnStartTime: null};
+            const gameData={hostId: hostId, players:players,playerOrder:[hostId],currentPlayerIndex:0,board:board,status:'waiting',log:[], activePowerUps: {}, skippedPlayers: [], turnStartTime: null};
             await setDoc(gameRef,gameData);
         }
-        async function joinGame(gameId,playerName){if(!currentUser)return;currentGameId=gameId;const gameRef=doc(db,"synthetiles-games",gameId);try{const gameDoc=await getDoc(gameRef);if(!gameDoc.exists()){lobbyErrorEl.textContent="Game not found.";return}let gameData=gameDoc.data();if(!gameData.players[currentUser.uid]){if(gameData.playerOrder.length>=4){lobbyErrorEl.textContent="Game is full.";return}if(gameData.status !== 'waiting'){lobbyErrorEl.textContent="Game has already started.";return}const newPlayerHand=dealHand(gameData.compoundDeck,gameData.reactantDeck);const updates={[`players.${currentUser.uid}`]:{id:currentUser.uid,score:0,hand:newPlayerHand,name:playerName, timeLeft: PLAYER_TOTAL_TIME},playerOrder:[...gameData.playerOrder,currentUser.uid],compoundDeck:gameData.compoundDeck,reactantDeck:gameData.reactantDeck,log:[...gameData.log,`${playerName} joined the game.`]};await updateDoc(gameRef,updates)}
-            
-            lobbyEl.classList.add('hidden');
-            waitingLobbyEl.classList.remove('hidden');
-
-            if(unsubscribeGame)unsubscribeGame();
-            unsubscribeGame=onSnapshot(gameRef,doc=>{
-                if(doc.exists()){
-                    const gameData = doc.data();
-                    if (gameData.status === 'waiting') {
-                        renderWaitingLobby(gameData);
-                    } else if (gameData.status === 'in-progress') {
-                        waitingLobbyEl.classList.add('hidden');
-                        gameScreenEl.classList.remove('hidden');
-                        renderGame(gameData);
-                    } else if (gameData.status === 'finished') {
-                        showWinner(gameData);
-                    }
-                } else {
-                    endGameSession("The game has ended.");
+        async function joinGame(gameId,playerName){
+            if(!currentUser)return;
+            currentGameId=gameId;
+            const gameRef=doc(db,"synthetiles-games",gameId);
+            try{
+                const gameDoc=await getDoc(gameRef);
+                if(!gameDoc.exists()){
+                    lobbyErrorEl.textContent="Game not found.";
+                    return;
                 }
-            })
-        }catch(error){console.error("Error joining game:",error);lobbyErrorEl.textContent="Could not join game."}}
+                let gameData=gameDoc.data();
+                if(!gameData.players[currentUser.uid]){
+                    if(gameData.playerOrder.length>=4){
+                        lobbyErrorEl.textContent="Game is full.";
+                        return;
+                    }
+                    if(gameData.status !== 'waiting'){
+                        lobbyErrorEl.textContent="Game has already started.";
+                        return;
+                    }
+                    const newPlayerHand=dealHand();
+                    const updates={[`players.${currentUser.uid}`]:{id:currentUser.uid,score:0,hand:newPlayerHand,name:playerName, timeLeft: PLAYER_TOTAL_TIME},playerOrder:[...gameData.playerOrder,currentUser.uid],log:[...gameData.log,`${playerName} joined the game.`]};
+                    await updateDoc(gameRef,updates);
+                }
+                
+                lobbyEl.classList.add('hidden');
+                waitingLobbyEl.classList.remove('hidden');
+
+                if(unsubscribeGame)unsubscribeGame();
+                unsubscribeGame=onSnapshot(gameRef,doc=>{
+                    if(doc.exists()){
+                        const gameData = doc.data();
+                        if (gameData.status === 'waiting') {
+                            renderWaitingLobby(gameData);
+                        } else if (gameData.status === 'in-progress') {
+                            waitingLobbyEl.classList.add('hidden');
+                            gameScreenEl.classList.remove('hidden');
+                            renderGame(gameData);
+                        } else if (gameData.status === 'finished') {
+                            showWinner(gameData);
+                        }
+                    } else {
+                        endGameSession("The game has ended.");
+                    }
+                });
+            }catch(error){
+                console.error("Error joining game:",error);
+                lobbyErrorEl.textContent="Could not join game.";
+            }
+        }
         
         function renderWaitingLobby(gameData) {
             waitingGameIdEl.textContent = currentGameId;
@@ -397,7 +409,7 @@
         startGameBtn.addEventListener('click', async () => {
             const gameRef = doc(db, "synthetiles-games", currentGameId);
             const gameDoc = await getDoc(gameRef);
-                       if (!gameDoc.exists()) return;
+            if (!gameDoc.exists()) return;
             const gameData = gameDoc.data();
             await updateDoc(gameRef, {
                 status: 'in-progress',
@@ -418,7 +430,10 @@ function renderGame(gameData) {
     }
 
     const myPlayer = gameData.players[currentUser.uid];
-    if (!myPlayer) return; // Add this check
+    if (!myPlayer) {
+        endGameSession("You have been removed from the game.");
+        return;
+    }
 
     gameIdDisplay.textContent = currentGameId;
     renderBoard(gameData.board);
@@ -754,18 +769,13 @@ function renderGame(gameData) {
             
             let newPlayerHand = player.hand.filter(id => id !== powerUpTileId && id !== tileToGiveId);
             newPlayerHand.push(tileToReceiveId);
-
-            let newReactantDeck = [...gameData.reactantDeck];
-            if (newReactantDeck.length > 0) {
-                newPlayerHand.push(newReactantDeck.pop());
-            }
+            newPlayerHand.push(drawTile('reactant'));
 
             const logEntry = `${player.name} used a power-up to swap a tile with ${target.name}.`;
 
             const updates = {
                 [`players.${currentUser.uid}.hand`]: newPlayerHand,
                 [`players.${targetPlayerId}.hand`]: newTargetHand,
-                reactantDeck: newReactantDeck,
                 log: [...gameData.log, logEntry]
             };
             
@@ -818,34 +828,17 @@ function renderGame(gameData) {
             const gameRef = doc(db, "synthetiles-games", currentGameId);
             const player = gameData.players[currentUser.uid];
 
-            // Hand without powerup and swapped tiles
             let newHand = player.hand.filter(id => id !== powerUpTileId && !tilesToSwap.includes(id));
             
-            let newCompoundDeck = [...gameData.compoundDeck];
-            let newReactantDeck = [...gameData.reactantDeck];
-
-            // Return swapped tiles and the powerup tile
             [...tilesToSwap, powerUpTileId].forEach(id => {
                 const tileType = TILE_DEFINITIONS[id].type;
-                if (tileType === 'compound') newCompoundDeck.push(id);
-                else newReactantDeck.push(id);
-            });
-
-            newCompoundDeck = shuffleArray(newCompoundDeck);
-            newReactantDeck = shuffleArray(newReactantDeck);
-
-            // Draw new tiles
-            [...tilesToSwap, powerUpTileId].forEach(id => {
-                const tileType = TILE_DEFINITIONS[id].type;
-                if (tileType === 'compound' && newCompoundDeck.length > 0) newHand.push(newCompoundDeck.pop());
-                else if ((tileType === 'reactant' || tileType === 'powerup') && newReactantDeck.length > 0) newHand.push(newReactantDeck.pop());
+                 if (tileType === 'compound') newHand.push(drawTile('compound'));
+                 else newHand.push(drawTile('reactant'));
             });
 
             const logEntry = `${player.name} used P2 to swap ${tilesToSwap.length + 1} tile(s).`;
             const updates = {
                 [`players.${currentUser.uid}.hand`]: newHand,
-                compoundDeck: newCompoundDeck,
-                reactantDeck: newReactantDeck,
                 log: [...gameData.log, logEntry]
             };
             await updateDoc(gameRef, updates);
@@ -854,14 +847,10 @@ function renderGame(gameData) {
         async function handleP3PowerUp(gameData, powerUpTileId) {
             const player = gameData.players[currentUser.uid];
             let newHand = player.hand.filter(id => id !== powerUpTileId);
-            let newReactantDeck = [...gameData.reactantDeck];
-            if (newReactantDeck.length > 0) {
-                newHand.push(newReactantDeck.pop());
-            }
+            newHand.push(drawTile('reactant'));
 
             const updates = {
                 [`players.${currentUser.uid}.hand`]: newHand,
-                reactantDeck: newReactantDeck,
                 [`activePowerUps.${currentUser.uid}`]: 'P3',
                 log: [...gameData.log, `${player.name} activated Double Points!`]
             };
@@ -902,14 +891,10 @@ function renderGame(gameData) {
             const player = gameData.players[currentUser.uid];
             
             let newHand = player.hand.filter(id => id !== powerUpTileId);
-            let newReactantDeck = [...gameData.reactantDeck];
-            if(newReactantDeck.length > 0) {
-                newHand.push(newReactantDeck.pop());
-            }
+            newHand.push(drawTile('reactant'));
 
             const updates = {
                 [`players.${currentUser.uid}.hand`]: newHand,
-                reactantDeck: newReactantDeck,
                 skippedPlayers: [...(gameData.skippedPlayers || []), targetPlayerId],
                 log: [...gameData.log, `${player.name} used a power-up to make ${gameData.players[targetPlayerId].name} skip a turn.`]
             };
@@ -937,11 +922,11 @@ function renderGame(gameData) {
 
             let nextPlayerIndex = (gameData.currentPlayerIndex + 1) % gameData.playerOrder.length;
             // Determine active players AFTER the time update
-            const activePlayers = gameData.playerOrder.filter(pId => (updates[`players.${pId}.timeLeft`] ?? gameData.players[pId].timeLeft) > 0);
+            const activePlayers = gameData.playerOrder.filter(pId => gameData.players[pId] && (updates[`players.${pId}.timeLeft`] ?? gameData.players[pId].timeLeft) > 0);
 
             if (activePlayers.length === 0 && gameData.playerOrder.length > 0) {
                 // Determine winner by score
-                const finalPlayers = gameData.playerOrder.map(pId => gameData.players[pId]);
+                const finalPlayers = gameData.playerOrder.map(pId => gameData.players[pId]).filter(p => p);
                 finalPlayers.sort((a, b) => b.score - a.score);
                 const winnerName = finalPlayers[0] ? finalPlayers[0].name : "No one";
 
@@ -956,7 +941,12 @@ function renderGame(gameData) {
             while(loopGuard < gameData.playerOrder.length * 2) {
                 const nextPlayerId = gameData.playerOrder[nextPlayerIndex];
                 
-                // Skip players who have run out of time
+                if(!gameData.players[nextPlayerId]) {
+                    nextPlayerIndex = (nextPlayerIndex + 1) % gameData.playerOrder.length;
+                    loopGuard++;
+                    continue;
+                }
+
                 if ((updates[`players.${nextPlayerId}.timeLeft`] ?? gameData.players[nextPlayerId].timeLeft) <= 0) {
                     nextPlayerIndex = (nextPlayerIndex + 1) % gameData.playerOrder.length;
                     loopGuard++;
@@ -989,8 +979,7 @@ function renderGame(gameData) {
             const gameData=gameDoc.data();
             let{score,validMoves,logEntry}=validateAndScoreTurn(placedTilesThisTurn,gameData.board);
             
-            if(validMoves>0){
-                // Check for P3 power-up
+            if(validMoves > 0 && score > 0){ // Correct move
                 if(gameData.activePowerUps && gameData.activePowerUps[currentUser.uid] === 'P3') {
                     score *= 2;
                     logEntry += ` (x2 score!)`;
@@ -1004,13 +993,18 @@ function renderGame(gameData) {
                 const player=gameData.players[currentUser.uid];
                 const placedTileIds=placedTilesThisTurn.map(p=>p.tileId);
                 let newHand=player.hand.filter(id=>!placedTileIds.includes(id));
-                const newCompoundDeck=[...gameData.compoundDeck];
-                const newReactantDeck=[...gameData.reactantDeck];
-                placedTileIds.forEach(id=>{const tileType=TILE_DEFINITIONS[id].type;if(tileType==='compound'&&newCompoundDeck.length>0){newHand.push(newCompoundDeck.pop())}else if((tileType==='reactant'||tileType==='powerup')&&newReactantDeck.length>0){newHand.push(newReactantDeck.pop())}});
                 
-                const updates={board:newBoard,compoundDeck:newCompoundDeck,reactantDeck:newReactantDeck,[`players.${currentUser.uid}.hand`]:newHand,[`players.${currentUser.uid}.score`]:player.score+score,log:[...gameData.log,`${player.name} ${logEntry}`]};
+                placedTileIds.forEach(id=>{
+                    const tileType=TILE_DEFINITIONS[id].type;
+                    if(tileType==='compound'){
+                        newHand.push(drawTile('compound'))
+                    } else {
+                        newHand.push(drawTile('reactant'));
+                    }
+                });
                 
-                // Clear active powerup after use
+                const updates={board:newBoard,[`players.${currentUser.uid}.hand`]:newHand,[`players.${currentUser.uid}.score`]:player.score+score,log:[...gameData.log,`${player.name} ${logEntry}`]};
+                
                 if(gameData.activePowerUps && gameData.activePowerUps[currentUser.uid]) {
                     updates[`activePowerUps.${currentUser.uid}`] = null;
                 }
@@ -1019,14 +1013,15 @@ function renderGame(gameData) {
                 
                 const updatedGameDoc = await getDoc(gameRef);
                 await advanceTurn(updatedGameDoc.data());
-            } else {
+            } else { // Incorrect move
                 showMessage("Incorrect combination, you lose a turn.");
                 const player = gameData.players[currentUser.uid];
                 renderGame(gameData); // Re-render to put tiles back visually
                 await updateDoc(gameRef, {
                     log: [...gameData.log, `${player.name} made an incorrect move and lost their turn.`]
                 });
-                await advanceTurn(gameData);
+                const updatedGameDoc = await getDoc(gameRef);
+                await advanceTurn(updatedGameDoc.data());
             }
             placedTilesThisTurn=[];
         });
@@ -1050,23 +1045,25 @@ function renderGame(gameData) {
             if (gameDoc.exists()) {
                 const gameData = gameDoc.data();
                 const playerName = gameData.players[currentUser.uid]?.name || 'A player';
+                
+                const playerOrder = gameData.playerOrder.filter(id => id !== currentUser.uid);
                 const updates = {
                     [`players.${currentUser.uid}`]: deleteField(),
-                    playerOrder: gameData.playerOrder.filter(id => id !== currentUser.uid),
+                    playerOrder: playerOrder,
                     log: [...gameData.log, `${playerName} left the game.`]
                 };
 
-                await updateDoc(gameRef, updates);
-
-                // After updating, check if the game should end
-                const remainingPlayers = updates.playerOrder.length;
-                if (remainingPlayers > 0 && remainingPlayers < 3) {
-                     await updateDoc(gameRef, { 
-                        status: 'finished',
-                        log: [...updates.log, 'Game ended due to not enough players.']
-                     });
-                } else if (remainingPlayers === 0) {
+                if (playerOrder.length === 0) {
                     await deleteDoc(gameRef);
+                } else {
+                    if(gameData.hostId === currentUser.uid){
+                        updates.hostId = playerOrder[0]; // Assign new host
+                    }
+                    if (playerOrder.length < 3 && gameData.status === 'in-progress') {
+                        updates.status = 'finished';
+                        updates.log = [...updates.log, 'Game ended due to not enough players.'];
+                    }
+                    await updateDoc(gameRef, updates);
                 }
             }
             
@@ -1102,33 +1099,13 @@ function renderGame(gameData) {
             const player = gameData.players[currentUser.uid];
             let newHand = player.hand.filter(id => !tilesToSwap.includes(id));
             
-            let newCompoundDeck = [...gameData.compoundDeck];
-            let newReactantDeck = [...gameData.reactantDeck];
-
             tilesToSwap.forEach(id => {
                 const tileType = TILE_DEFINITIONS[id].type;
-                if (tileType === 'compound') {
-                    newCompoundDeck.push(id);
-                } else {
-                    newReactantDeck.push(id);
-                }
-            });
-
-            newCompoundDeck = shuffleArray(newCompoundDeck);
-            newReactantDeck = shuffleArray(newReactantDeck);
-
-            tilesToSwap.forEach(id => {
-                const tileType = TILE_DEFINITIONS[id].type;
-                if (tileType === 'compound' && newCompoundDeck.length > 0) {
-                    newHand.push(newCompoundDeck.pop());
-                } else if ((tileType === 'reactant' || tileType === 'powerup') && newReactantDeck.length > 0) {
-                    newHand.push(newReactantDeck.pop());
-                }
+                 if (tileType === 'compound') newHand.push(drawTile('compound'));
+                 else newHand.push(drawTile('reactant'));
             });
 
              const updates = {
-                compoundDeck: newCompoundDeck,
-                reactantDeck: newReactantDeck,
                 [`players.${currentUser.uid}.hand`]:newHand,
                 log: [...gameData.log, `${player.name} swapped ${tilesToSwap.length} tile(s).`]
             };
@@ -1265,9 +1242,51 @@ function getNeighbors(x, y, board, placedThisTurn=[]) {
 }
         
         function generateGameId(){return Math.random().toString(36).substring(2,7).toUpperCase()}
-        function generateInitialDecks(){let compoundDeck=[],reactantDeck=[];for(const tileId in TILE_DEFINITIONS){const tile=TILE_DEFINITIONS[tileId];if(tile.type==='compound'){for(let i=0;i<2;i++)compoundDeck.push(tileId)}else if(tile.type==='reactant'||tile.type==='powerup'){for(let i=0;i<2;i++)reactantDeck.push(tileId)}}return{compoundDeck:shuffleArray(compoundDeck),reactantDeck:shuffleArray(reactantDeck)}}
-        function shuffleArray(array){for(let i=array.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[array[i],array[j]]=[array[j],array[i]]}return array}
-        function dealHand(compoundDeck,reactantDeck){const hand=[];for(let i=0;i<5;i++){if(compoundDeck.length>0)hand.push(compoundDeck.pop());if(reactantDeck.length>0)hand.push(reactantDeck.pop())}return hand}
+        
+        // --- PROBABILITY-BASED TILE DRAWING ---
+        const compoundProbabilities = {
+            'C1': 7.5, 'C5': 5.0, 'C6': 5.0, 'C7': 5.0, 'C10': 5.0, 'C16': 5.0, 'C29': 5.0,
+            'C3': 3.8, 'C4': 3.8, 'C8': 3.8, 'C9': 3.8, 'C22': 3.8, 'C26': 3.8
+        };
+        const reactantProbabilities = {
+            'R26': 13.9, 'R7': 5.6, 'R10': 5.6, 'R11': 5.6, 'R12': 5.6, 'R13': 5.6, 'R22': 5.6
+        };
+
+        const compoundTiles = Object.keys(TILE_DEFINITIONS).filter(id => TILE_DEFINITIONS[id].type === 'compound');
+        const reactantTiles = Object.keys(TILE_DEFINITIONS).filter(id => TILE_DEFINITIONS[id].type === 'reactant' || TILE_DEFINITIONS[id].type === 'powerup');
+
+        function buildWeightedList(tileList, probabilityMap, defaultProb) {
+            const weightedList = [];
+            for (const tileId of tileList) {
+                const weight = Math.round((probabilityMap[tileId] || defaultProb) * 10);
+                for (let i = 0; i < weight; i++) {
+                    weightedList.push(tileId);
+                }
+            }
+            return weightedList;
+        }
+
+        const weightedCompoundList = buildWeightedList(compoundTiles, compoundProbabilities, 2.5);
+        const weightedReactantList = buildWeightedList(reactantTiles, reactantProbabilities, 2.8);
+
+        function drawTile(type) {
+            if (type === 'compound') {
+                const randIndex = Math.floor(Math.random() * weightedCompoundList.length);
+                return weightedCompoundList[randIndex];
+            } else { // reactant or powerup
+                const randIndex = Math.floor(Math.random() * weightedReactantList.length);
+                return weightedReactantList[randIndex];
+            }
+        }
+
+        function dealHand(){
+            const hand=[];
+            for(let i=0;i<5;i++){
+                hand.push(drawTile('compound'));
+                hand.push(drawTile('reactant'));
+            }
+            return hand;
+        }
         
         function formatTime(seconds) {
         if (typeof seconds !== 'number' || seconds < 0) {
