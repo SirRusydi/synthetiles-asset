@@ -12,8 +12,8 @@
             overflow: hidden; /* Prevent scrolling */
         }
         .tile {
-            width: 90px; /* 1.5x original size */
-            height: 90px; /* 1.5x original size */
+            width: 90px;
+            height: 90px;
             border: 1px solid #9CA3AF;
             background-color: #F3F4F6;
             display: flex;
@@ -36,17 +36,15 @@
             border: 2px solid #F59E0B;
             box-shadow: 0 0 10px #F59E0B;
         }
-        /* Style for tiles inside a modal for selection */
         .modal-tile-selection .tile {
             margin: 5px;
         }
-        /* Tooltip for tile name */
         .tile .tile-name {
             position: absolute;
-            bottom: 105%; /* Position it just above the tile */
+            bottom: 105%;
             left: 50%;
             transform: translateX(-50%);
-            background-color: #1F2937; /* dark gray */
+            background-color: #1F2937;
             color: white;
             padding: 4px 8px;
             border-radius: 6px;
@@ -57,20 +55,19 @@
             opacity: 0;
             transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
             z-index: 10;
-            pointer-events: none; /* So it doesn't interfere with clicks on the tile */
+            pointer-events: none;
         }
-
         .tile:hover .tile-name {
             visibility: visible;
             opacity: 1;
         }
         .board-cell {
-            width: 95px; /* Accommodate larger tiles */
-            height: 95px; /* Accommodate larger tiles */
+            width: 95px;
+            height: 95px;
             border: 1px dashed #D1D5DB;
             background-color: #fff;
             border-radius: 8px;
-            flex-shrink: 0; /* Prevent cells from shrinking */
+            flex-shrink: 0;
         }
         .board-cell.center::before {
             content: '★';
@@ -87,7 +84,6 @@
         #game-board-container {
             display: grid;
         }
-        /* Custom modal styles */
         .modal-backdrop {
             position: fixed;
             top: 0;
@@ -120,8 +116,6 @@
         .modal-backdrop.visible .modal-content {
             transform: scale(1);
         }
-
-        /* Animations */
         @keyframes pop-in {
             0% { transform: scale(0.5); opacity: 0; }
             100% { transform: scale(1); opacity: 1; }
@@ -129,7 +123,6 @@
         .tile-placed {
             animation: pop-in 0.3s ease-out;
         }
-        
         @keyframes slide-down-fade-in {
             0% { opacity: 0; transform: translateY(-20px); }
             100% { opacity: 1; transform: translateY(0); }
@@ -137,11 +130,9 @@
         .turn-change-animation {
             animation: slide-down-fade-in 0.5s ease-out;
         }
-
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 flex items-center justify-center h-screen">
-
     <!-- Lobby Screen -->
     <div id="lobby" class="text-center bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
         <h1 class="text-4xl font-bold text-blue-600 mb-2">Synthetiles</h1>
@@ -165,12 +156,8 @@
             <p class="text-sm text-gray-500">Game ID</p>
             <p id="waiting-game-id" class="text-4xl font-mono tracking-widest bg-gray-100 p-3 rounded-lg cursor-pointer" title="Click to copy"></p>
         </div>
-        
         <h2 class="text-xl font-bold mb-3">Players Joined</h2>
-        <div id="waiting-player-list" class="space-y-2 mb-6 min-h-[100px]">
-            <!-- Player names will be dynamically inserted here -->
-        </div>
-
+        <div id="waiting-player-list" class="space-y-2 mb-6 min-h-[100px]"></div>
         <div id="host-controls" class="hidden">
             <button id="start-game-btn" disabled class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed">
                 Start Game (Need 3 players)
@@ -191,23 +178,16 @@
             </div>
             <div id="turn-indicator" class="text-lg font-semibold p-2 rounded-md"></div>
         </div>
-
         <!-- Main Content -->
         <div class="flex flex-col lg:flex-row flex-grow space-y-4 lg:space-y-0 lg:space-x-4 min-h-0">
-            <!-- Left Column (Board) -->
             <div class="flex-grow flex bg-white p-4 rounded-lg shadow-md overflow-auto">
                 <div id="game-board-container"></div>
             </div>
-
-            <!-- Right Column (Info, Hand, Actions) -->
             <div class="w-full lg:w-1/3 bg-white p-4 rounded-lg shadow-md flex flex-col space-y-4 overflow-y-auto">
-                <!-- Player Info -->
                 <div>
                     <h2 class="text-xl font-bold mb-2 border-b pb-2">Players</h2>
                     <div id="player-scores" class="space-y-2"></div>
                 </div>
-
-                <!-- Player Hand -->
                 <div id="player-hand-container">
                     <div class="mb-2">
                         <h4 class="font-semibold text-sm text-gray-600">Compounds</h4>
@@ -218,8 +198,6 @@
                         <div id="reactant-hand" class="flex player-hand min-h-[65px] flex-wrap"></div>
                     </div>
                 </div>
-
-                <!-- Action Buttons -->
                 <div id="action-buttons" class="flex flex-col space-y-2">
                     <button id="place-tiles-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-5 rounded-lg transition disabled:bg-gray-400">Place Tiles</button>
                     <div class="flex space-x-2">
@@ -243,7 +221,6 @@
             <button id="modal-close-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg">OK</button>
         </div>
     </div>
-
 
     <script type="module">
         // Firebase Imports
@@ -683,26 +660,22 @@
                 showMessage("There are no other players to swap with.");
                 return;
             }
-
             let buttonsHtml = opponents.map(oppId => {
                 const opponent = gameData.players[oppId];
                 return `<button data-player-id="${oppId}" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded my-1">${opponent.name}</button>`;
             }).join('');
-
             modalText.innerHTML = `
                 <h3 class="text-xl font-bold mb-4">P1: Swap With Player</h3>
                 <p class="mb-4">Choose an opponent to swap a random tile with. This does not end your turn.</p>
                 ${buttonsHtml}
             `;
-            
             modalText.querySelectorAll('button').forEach(button => {
                 button.addEventListener('click', () => {
                     const targetPlayerId = button.dataset.playerId;
                     promptForPlayerTileToSwap(gameData, targetPlayerId, powerUpTileId);
                 });
             });
-
-            showMessage(""); // Show modal with custom HTML
+            messageModal.classList.add('visible'); // FIXED: show modal
         }
 
         function promptForPlayerTileToSwap(gameData, targetPlayerId, powerUpTileId) {
@@ -772,24 +745,19 @@
         }
 
         function handleP2PowerUp(gameData, powerUpTileId) {
-             const player = gameData.players[currentUser.uid];
+            const player = gameData.players[currentUser.uid];
             const swappableHand = player.hand.filter(id => id !== powerUpTileId);
-
-            isSwapMode = true; // Enter swap mode for P2
-            tilesToSwap = []; // Reset selection
-
+            isSwapMode = true;
+            tilesToSwap = [];
             let tilesHtml = swappableHand.map(tileId => {
                 return `<div class="inline-block" data-tile-id="${tileId}">${createTileElement(tileId).outerHTML}</div>`;
             }).join('');
-
             modalText.innerHTML = `
                 <h3 class="text-xl font-bold mb-4">P2: Swap From Pile</h3>
                 <p class="mb-4">Select tiles to exchange with the pile. This won't end your turn.</p>
                 <div class="flex flex-wrap justify-center modal-tile-selection">${tilesHtml}</div>
                 <button id="p2-confirm-btn" class="mt-4 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-5 rounded-lg">Confirm Swap</button>
             `;
-            
-            // Add click listeners to tiles in the modal
             modalText.querySelectorAll('.tile').forEach(tileEl => {
                 tileEl.addEventListener('click', () => {
                     tileEl.classList.toggle('swap-selected');
@@ -802,15 +770,13 @@
                     }
                 });
             });
-
             document.getElementById('p2-confirm-btn').addEventListener('click', async () => {
                 await executeP2Swap(gameData, powerUpTileId, tilesToSwap);
                 isSwapMode = false;
                 tilesToSwap = [];
                 messageModal.classList.remove('visible');
             });
-
-            showMessage(""); // Show the modal
+            messageModal.classList.add('visible'); // FIXED: show modal
         }
 
         async function executeP2Swap(gameData, powerUpTileId, tilesToSwap) {
@@ -869,32 +835,28 @@
             showMessage("Double Points activated! Your next score this turn will be doubled.");
         }
 
-        async function handleP4PowerUp(gameData, powerUpTileId) {
-             const opponents = gameData.playerOrder.filter(id => id !== currentUser.uid && gameData.players[id].timeLeft > 0);
+        function handleP4PowerUp(gameData, powerUpTileId) {
+            const opponents = gameData.playerOrder.filter(id => id !== currentUser.uid && gameData.players[id].timeLeft > 0);
             if (opponents.length === 0) {
                 showMessage("There are no other players to skip.");
                 return;
             }
-
             let buttonsHtml = opponents.map(oppId => {
                 const opponent = gameData.players[oppId];
                 return `<button data-player-id="${oppId}" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded my-1">${opponent.name}</button>`;
             }).join('');
-
             modalText.innerHTML = `
                 <h3 class="text-xl font-bold mb-4">P4: Skip Player</h3>
                 <p class="mb-4">Choose an opponent to skip their next turn. This will end your turn.</p>
                 ${buttonsHtml}
             `;
-            
             modalText.querySelectorAll('button').forEach(button => {
                 button.addEventListener('click', async () => {
                     const targetPlayerId = button.dataset.playerId;
                     await executeP4Skip(gameData, powerUpTileId, targetPlayerId);
                 });
             });
-            
-            showMessage("");
+            messageModal.classList.add('visible'); // FIXED: show modal
         }
         
         async function executeP4Skip(gameData, powerUpTileId, targetPlayerId) {
@@ -1194,7 +1156,21 @@
             return { score: totalScore, validMoves, logEntry };
         }
 
-        function getNeighbors(x,y,board,placedThisTurn=[]){const neighbors=[],directions=[{x:-1,y:0},{x:1,y:0},{x:0,y:-1},{x:0,y:1}];for(const dir of directions){const nx=x+dir.x,ny=y+dir.y;const coordKey=`${nx},${ny}`;let tile=board[coordKey];if(!tile){const placed=placedThisTurn.find(p=>p.x===nx&&p.y===ny);if(placed)tile={tileId:placed.tileId}}neighbors.push({tile,pos:{x:nx,y:ny}})}}return neighbors}
+                function getNeighbors(x, y, board, placedThisTurn = []) {
+            const neighbors = [];
+            const directions = [{ x: -1, y: 0 }, { x: 1, y: 0 }, { x: 0, y: -1 }, { x: 0, y: 1 }];
+            for (const dir of directions) {
+                const nx = x + dir.x, ny = y + dir.y;
+                const coordKey = `${nx},${ny}`;
+                let tile = board[coordKey];
+                if (!tile) {
+                    const placed = placedThisTurn.find(p => p.x === nx && p.y === ny);
+                    if (placed) tile = { tileId: placed.tileId };
+                }
+                neighbors.push({ tile, pos: { x: nx, y: ny } });
+            }
+            return neighbors;
+        }
         function findTileAt(x,y,board,placedThisTurn=[]){const coordKey=`${x},${y}`;let tile=board[coordKey];if(!tile){const placed=placedThisTurn.find(p=>p.x===x&&p.y===y);if(placed)tile={tileId:placed.tileId}}return tile}
         
         function generateGameId(){return Math.random().toString(36).substring(2,7).toUpperCase()}
@@ -1203,8 +1179,9 @@
         function dealHand(compoundDeck,reactantDeck){const hand=[];for(let i=0;i<5;i++){if(compoundDeck.length>0)hand.push(compoundDeck.pop());if(reactantDeck.length>0)hand.push(reactantDeck.pop())}return hand}
         
         function formatTime(seconds) {
-            const minutes = Math.floor(seconds / 60);
-            const remainingSeconds = Math.floor(seconds % 60);
+            const safeSeconds = Math.max(0, seconds);
+            const minutes = Math.floor(safeSeconds / 60);
+            const remainingSeconds = Math.floor(safeSeconds % 60);
             return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
         }
 
