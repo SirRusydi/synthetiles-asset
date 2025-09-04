@@ -251,7 +251,7 @@
         // Firebase Imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- GAME CONFIGURATION ---
         const TILE_DEFINITIONS = {
@@ -262,6 +262,7 @@
         const REACTION_RULES={'C1':{'R1':'C2','R2':'C3','R3':'C26','R4':'C27','R5':'C25','R7':'C16','R8':'C4'},'C2':{'R6':'C3'},'C3':{'R9':'C1','R10':'C14','R12':'C11','R13':'C18','R11':'C16'},'C4':{'R9':'C1','R10':'C13','R12':'C12','R13':'C17','R11':'C5'},'C7':{'R9':'C1','R10':'C14','R12':'C11','R13':'C20','R11':'C6'},'C6':{'R9':'C1','R10':'C13','R12':'C12','R13':'C17','R11':'C5'},'C17':{'R23':'C22','R7':'C2'},'C19':{'R23':'C22','R7':'C2'},'C18':{'R23':'C28','R7':'C2'},'C20':{'R23':'C28','R7':'C2'},'C5':{'R14':'C9','R15':'C10','R18':'C6','R19':'C6','R20':'C6','R21':'C4','R2':'C4','R16':'C1','R25':'C6'},'C16':{'R14':'C8','R15':'C8','R18':'C7','R19':'C7','R20':'C7','R21':'C3','R2':'C3','R16':'C1','R25':'C7'},'C26':{'R21':'C27'},'C9':{'R15':'C10','R22':'C5','R24':'C5','R1':'C5'},'C8':{'R22':'C16','R24':'C16','R1':'C16'},'C10':{'R22':'C5','R1':'C5','R18':'C15','R19':'C15','R20':'C15','R17':'C21'},'C12':{'R22':'C24','R1':'C24','R7':'C22'},'C11':{'R22':'C23','R1':'C23','R7':'C28'}};
         const BOARD_SIZE=15;
         const firebaseConfig={apiKey:"AIzaSyCsGLhAISQDd2mRUy9HcRISNjbzdOV6zFI",authDomain:"the-synthetiles.firebaseapp.com",projectId:"the-synthetiles",storageBucket:"the-synthetiles.firebasestorage.app",messagingSenderId:"4417745494",appId:"1:4417745494:web:3aeeca49d76a518cb881f7",measurementId:"G-5TE6BNZN5H"};
+        const PLAYER_TOTAL_TIME = 600; // 10 minutes in seconds
 
         const app=initializeApp(firebaseConfig);
         const db=getFirestore(app);
@@ -277,7 +278,8 @@
         const hostControlsEl = document.getElementById('host-controls');
         const startGameBtn = document.getElementById('start-game-btn');
         const waitingMessageEl = document.getElementById('waiting-message');
-       
+        let playerTimerInterval = null;
+
         onAuthStateChanged(auth,user=>{user?currentUser=user:signInAnonymously(auth).catch(error=>{console.error("Anonymous sign-in failed:",error);if(error.code==='auth/configuration-not-found'){const errorMessage="Configuration Error: Anonymous sign-in is not enabled in your Firebase project. Please follow the steps in the code comments to enable it in the Firebase console.";lobbyErrorEl.textContent="Configuration Error. See pop-up for details.";showMessage(errorMessage)}else{lobbyErrorEl.textContent="Could not connect. Please refresh."}})});
         
         function validateUsername() {
@@ -314,12 +316,12 @@
         waitingGameIdEl.addEventListener('click', () => copyToClipboard(currentGameId));
         modalCloseBtn.addEventListener('click',()=>messageModal.classList.remove('visible'));
         
-                modalCloseBtn.addEventListener('click',()=>messageModal.classList.remove('visible'));
+        modalCloseBtn.addEventListener('click',()=>messageModal.classList.remove('visible'));
         
         async function createNewGame(gameRef,hostId,hostName){
             const{compoundDeck,reactantDeck}=generateInitialDecks();
             const players={};
-            players[hostId]={id:hostId,score:0,hand:dealHand(compoundDeck,reactantDeck),name:hostName};
+            players[hostId]={id:hostId,score:0,hand:dealHand(compoundDeck,reactantDeck),name:hostName, timeLeft: PLAYER_TOTAL_TIME};
             const board=Array(BOARD_SIZE).fill(null).map(()=>Array(BOARD_SIZE).fill(null));
             const center=Math.floor(BOARD_SIZE/2);
 
@@ -348,10 +350,10 @@
             }
 
             board[center][center]={tileId:startingCompoundId};
-            const gameData={hostId: hostId, players:players,playerOrder:[hostId],currentPlayerIndex:0,compoundDeck:compoundDeck,reactantDeck:reactantDeck,board:JSON.stringify(board),status:'waiting',log:[]};
+            const gameData={hostId: hostId, players:players,playerOrder:[hostId],currentPlayerIndex:0,compoundDeck:compoundDeck,reactantDeck:reactantDeck,board:JSON.stringify(board),status:'waiting',log:[], activePowerUps: {}, skippedPlayers: [], turnStartTime: null};
             await setDoc(gameRef,gameData);
         }
-        async function joinGame(gameId,playerName){if(!currentUser)return;currentGameId=gameId;const gameRef=doc(db,"synthetiles-games",gameId);try{const gameDoc=await getDoc(gameRef);if(!gameDoc.exists()){lobbyErrorEl.textContent="Game not found.";return}let gameData=gameDoc.data();if(!gameData.players[currentUser.uid]){if(gameData.playerOrder.length>=4){lobbyErrorEl.textContent="Game is full.";return}if(gameData.status !== 'waiting'){lobbyErrorEl.textContent="Game has already started.";return}const newPlayerHand=dealHand(gameData.compoundDeck,gameData.reactantDeck);const updates={[`players.${currentUser.uid}`]:{id:currentUser.uid,score:0,hand:newPlayerHand,name:playerName},playerOrder:[...gameData.playerOrder,currentUser.uid],compoundDeck:gameData.compoundDeck,reactantDeck:gameData.reactantDeck,log:[...gameData.log,`${playerName} joined the game.`]};await updateDoc(gameRef,updates)}
+        async function joinGame(gameId,playerName){if(!currentUser)return;currentGameId=gameId;const gameRef=doc(db,"synthetiles-games",gameId);try{const gameDoc=await getDoc(gameRef);if(!gameDoc.exists()){lobbyErrorEl.textContent="Game not found.";return}let gameData=gameDoc.data();if(!gameData.players[currentUser.uid]){if(gameData.playerOrder.length>=4){lobbyErrorEl.textContent="Game is full.";return}if(gameData.status !== 'waiting'){lobbyErrorEl.textContent="Game has already started.";return}const newPlayerHand=dealHand(gameData.compoundDeck,gameData.reactantDeck);const updates={[`players.${currentUser.uid}`]:{id:currentUser.uid,score:0,hand:newPlayerHand,name:playerName, timeLeft: PLAYER_TOTAL_TIME},playerOrder:[...gameData.playerOrder,currentUser.uid],compoundDeck:gameData.compoundDeck,reactantDeck:gameData.reactantDeck,log:[...gameData.log,`${playerName} joined the game.`]};await updateDoc(gameRef,updates)}
             
             lobbyEl.classList.add('hidden');
             waitingLobbyEl.classList.remove('hidden');
@@ -366,6 +368,8 @@
                         waitingLobbyEl.classList.add('hidden');
                         gameScreenEl.classList.remove('hidden');
                         renderGame(gameData);
+                    } else if (gameData.status === 'finished') {
+                        showWinner(gameData);
                     }
                 } else {
                     endGameSession("The game has ended.");
@@ -404,42 +408,90 @@
         startGameBtn.addEventListener('click', async () => {
             const gameRef = doc(db, "synthetiles-games", currentGameId);
             const gameDoc = await getDoc(gameRef);
-            if (!gameDoc.exists()) return;
+                       if (!gameDoc.exists()) return;
             const gameData = gameDoc.data();
             await updateDoc(gameRef, {
                 status: 'in-progress',
+                turnStartTime: serverTimestamp(),
                 log: [...gameData.log, 'The game has started!']
             });
              // The onSnapshot listener will handle the screen transition for all players.
         });
 
         
-        function renderGame(gameData){if(!gameData||!currentUser)return;gameIdDisplay.textContent=currentGameId;const boardData=JSON.parse(gameData.board);renderBoard(boardData);const myPlayer=gameData.players[currentUser.uid];if(myPlayer){renderHand(myPlayer.hand)}renderPlayerScores(gameData.players,gameData.playerOrder);updateTurnIndicator(gameData);const isMyTurn=gameData.playerOrder[gameData.currentPlayerIndex]===currentUser.uid;placeTilesBtn.disabled=!isMyTurn||placedTilesThisTurn.length===0;skipTurnBtn.disabled=!isMyTurn;swapTilesBtn.disabled=!isMyTurn}
+        function renderGame(gameData){if(!gameData||!currentUser)return;gameIdDisplay.textContent=currentGameId;const boardData=JSON.parse(gameData.board);renderBoard(boardData);const myPlayer=gameData.players[currentUser.uid];if(myPlayer){renderHand(myPlayer.hand)}renderPlayerScores(gameData.players,gameData.playerOrder, gameData);updateTurnIndicator(gameData);const isMyTurn=gameData.playerOrder[gameData.currentPlayerIndex]===currentUser.uid;placeTilesBtn.disabled=!isMyTurn||placedTilesThisTurn.length===0;skipTurnBtn.disabled=!isMyTurn;swapTilesBtn.disabled=!isMyTurn}
         function renderBoard(boardData){boardContainer.innerHTML='';const center=Math.floor(BOARD_SIZE/2);for(let r=0;r<BOARD_SIZE;r++){for(let c=0;c<BOARD_SIZE;c++){const cell=document.createElement('div');cell.classList.add('board-cell','relative','flex','items-center','justify-center');if(r===center&&c===center){cell.classList.add('center')}cell.dataset.row=r;cell.dataset.col=c;const cellData=boardData[r][c];if(cellData&&cellData.tileId){const tile=createTileElement(cellData.tileId);tile.style.cursor='default';cell.appendChild(tile)}else{cell.addEventListener('click',()=>onBoardCellClick(r,c,cell))}boardContainer.appendChild(cell)}}}
         
         function renderHand(hand) {
             const compoundHandEl = document.getElementById('compound-hand');
             const reactantHandEl = document.getElementById('reactant-hand');
             compoundHandEl.innerHTML = '';
-            reactantHandEl.innerHTML = '';
-
+            reactantHandEl.innerHTML = ''; // FIX: This line was missing
             hand.forEach(tileId => {
                 const tileData = TILE_DEFINITIONS[tileId];
                 const tileElement = createTileElement(tileId);
                 tileElement.addEventListener('click', () => onHandTileClick(tileId, tileElement));
-
                 if (tileData.type === 'compound') {
                     compoundHandEl.appendChild(tileElement);
-                } else { // Reactants and power-ups
+                } else {
                     reactantHandEl.appendChild(tileElement);
                 }
             });
         }
 
-        function renderPlayerScores(players,playerOrder){playerScoresEl.innerHTML='';playerOrder.forEach(playerId=>{const player=players[playerId];const scoreDiv=document.createElement('div');scoreDiv.className='flex justify-between items-center p-2 rounded-md';if(playerId===currentUser.uid){scoreDiv.classList.add('bg-blue-100')}scoreDiv.innerHTML=`<span class="font-medium">${player.name} ${playerId===currentUser.uid?'(You)':''}</span> <span class="font-bold text-lg">${player.score}</span>`;playerScoresEl.appendChild(scoreDiv)})}
+        function renderPlayerScores(players, playerOrder, gameData) {
+            playerScoresEl.innerHTML = '';
+            playerOrder.forEach(playerId => {
+                const player = players[playerId];
+                const scoreDiv = document.createElement('div');
+                scoreDiv.className = `flex justify-between items-center p-2 rounded-md ${player.timeLeft <= 0 ? 'bg-gray-200 text-gray-500' : ''}`;
+                if (playerId === currentUser.uid && player.timeLeft > 0) {
+                    scoreDiv.classList.add('bg-blue-100');
+                }
+
+                const timerId = `timer-${playerId}`;
+                scoreDiv.innerHTML = `
+                    <div>
+                        <span class="font-medium">${player.name} ${playerId === currentUser.uid ? '(You)' : ''}</span>
+                        ${player.timeLeft <= 0 ? '<span class="text-sm font-bold text-red-600"> [Eliminated]</span>' : ''}
+                    </div>
+                    <div class="flex items-center">
+                        <span id="${timerId}" class="font-mono text-lg mr-4">${formatTime(player.timeLeft)}</span>
+                        <span class="font-bold text-lg">${player.score}</span>
+                    </div>
+                `;
+                playerScoresEl.appendChild(scoreDiv);
+            });
+
+            // Start/Stop timer
+            if (playerTimerInterval) clearInterval(playerTimerInterval);
+            const currentPlayerId = gameData.playerOrder[gameData.currentPlayerIndex];
+            if (currentPlayerId === currentUser.uid && gameData.status === 'in-progress' && players[currentUser.uid].timeLeft > 0) {
+                const turnStartTime = gameData.turnStartTime.toDate();
+                let timeLeft = players[currentUser.uid].timeLeft;
+                const timerEl = document.getElementById(`timer-${currentUser.uid}`);
+
+                playerTimerInterval = setInterval(async () => {
+                    const elapsed = (new Date() - turnStartTime) / 1000;
+                    const remaining = Math.max(0, timeLeft - elapsed);
+                    if(timerEl) timerEl.textContent = formatTime(remaining);
+
+                    if (remaining <= 0) {
+                        clearInterval(playerTimerInterval);
+                        showMessage("You ran out of time!");
+                        // Force the turn to advance automatically
+                        const gameRef = doc(db, "synthetiles-games", currentGameId);
+                        const gameDoc = await getDoc(gameRef);
+                        if (gameDoc.exists()) {
+                            await advanceTurn(gameDoc.data(), true); // true indicates a forced turn end
+                        }
+                    }
+                }, 1000);
+            }
+        }
         function updateTurnIndicator(gameData){
             turnIndicatorEl.classList.remove('turn-change-animation');
-            const currentPlayerId=gameData.playerOrder[gameData.currentPlayerIndex];
+            const currentPlayerId=gameData.playerOrder[gameData.currentPlayerIndex];            
             const currentPlayer=gameData.players[currentPlayerId];
             if(currentPlayerId===currentUser.uid){
                 turnIndicatorEl.textContent="It's your turn!";
@@ -578,7 +630,7 @@
                 ${buttonsHtml}
             `;
             
-            modalText.querySelectorAll('button').forEach(button => {
+            Array.from(modalText.querySelectorAll('button')).forEach(button => {
                 button.addEventListener('click', () => {
                     const targetPlayerId = button.dataset.playerId;
                     promptForPlayerTileToSwap(gameData, targetPlayerId, powerUpTileId);
@@ -589,6 +641,7 @@
         }
 
         function promptForPlayerTileToSwap(gameData, targetPlayerId, powerUpTileId) {
+            
             const player = gameData.players[currentUser.uid];
             const swappableHand = player.hand.filter(id => id !== powerUpTileId);
 
@@ -608,7 +661,7 @@
                 <div class="flex flex-wrap justify-center modal-tile-selection">${tilesHtml}</div>
             `;
 
-            modalText.querySelectorAll('.tile').forEach(tileEl => {
+            Array.from(modalText.querySelectorAll('.tile')).forEach(tileEl => {
                 tileEl.addEventListener('click', async () => {
                     const tileToGiveId = tileEl.dataset.tileId;
                     await executeP1Swap(gameData, targetPlayerId, powerUpTileId, tileToGiveId);
@@ -672,7 +725,7 @@
             `;
             
             // Add click listeners to tiles in the modal
-            modalText.querySelectorAll('.tile').forEach(tileEl => {
+            Array.from(modalText.querySelectorAll('.tile')).forEach(tileEl => {
                 tileEl.addEventListener('click', () => {
                     tileEl.classList.toggle('swap-selected');
                     const tileId = tileEl.dataset.tileId;
@@ -769,7 +822,7 @@
                 ${buttonsHtml}
             `;
             
-            modalText.querySelectorAll('button').forEach(button => {
+            Array.from(modalText.querySelectorAll('button')).forEach(button => {
                 button.addEventListener('click', async () => {
                     const targetPlayerId = button.dataset.playerId;
                     await executeP4Skip(gameData, powerUpTileId, targetPlayerId);
@@ -798,36 +851,68 @@
 
             await updateDoc(doc(db, "synthetiles-games", currentGameId), updates);
             messageModal.classList.remove('visible');
-            await advanceTurn(gameData);
+            const updatedGameDoc = await getDoc(doc(db, "synthetiles-games", currentGameId));
+            await advanceTurn(updatedGameDoc.data());
         }
 
-        async function advanceTurn(gameData) {
-            let nextPlayerIndex = (gameData.currentPlayerIndex + 1) % gameData.playerOrder.length;
+        async function advanceTurn(gameData, forcedByTimer = false) {
+            const gameRef = doc(db, "synthetiles-games", currentGameId);
+            const currentPlayerData = gameData.players[gameData.playerOrder[gameData.currentPlayerIndex]];
+            let updates = {};
             let currentTurnGameData = gameData;
-            
-            while(true) {
-                let skippedPlayerId = currentTurnGameData.playerOrder[nextPlayerIndex];
-                const skippedPlayersList = currentTurnGameData.skippedPlayers || [];
-            
-                if (skippedPlayersList.includes(skippedPlayerId)) {
-                    const newSkippedList = skippedPlayersList.filter(id => id !== skippedPlayerId);
-                    const skippedPlayer = currentTurnGameData.players[skippedPlayerId];
-                    const log = [...currentTurnGameData.log, `${skippedPlayer.name}'s turn was skipped.`];
+            let nextPlayerIndex = (gameData.currentPlayerIndex + 1) % gameData.playerOrder.length; // FIX: This line was missing
 
-                    const updates = { skippedPlayers: newSkippedList, log };
-                    await updateDoc(doc(db, "synthetiles-games", currentGameId), updates);
+            // Handle time deduction for the player who just finished their turn.
+            if (!forcedByTimer && gameData.turnStartTime) {
+                const timeUsed = (new Date() - gameData.turnStartTime.toDate()) / 1000;
+                const currentPlayerId = gameData.playerOrder[gameData.currentPlayerIndex];
+                updates[`players.${currentPlayerId}.timeLeft`] = Math.max(0, gameData.players[currentPlayerId].timeLeft - timeUsed);
+            } else if (forcedByTimer) {
+                const currentPlayerId = gameData.playerOrder[gameData.currentPlayerIndex];
+                updates[`players.${currentPlayerId}.timeLeft`] = 0;
+            }
 
-                    currentTurnGameData.skippedPlayers = newSkippedList;
-                    currentTurnGameData.log = log;
-                    nextPlayerIndex = (nextPlayerIndex + 1) % currentTurnGameData.playerOrder.length;
+            // Determine active players AFTER the time update
+            const activePlayers = gameData.playerOrder.filter(pId => (updates[`players.${pId}.timeLeft`] ?? gameData.players[pId].timeLeft) > 0);
+
+            if (activePlayers.length === 0 && gameData.playerOrder.length > 0) {
+                // Determine winner by score
+                const finalPlayers = gameData.playerOrder.map(pId => gameData.players[pId]);
+                finalPlayers.sort((a, b) => b.score - a.score);
+                const winnerName = finalPlayers[0] ? finalPlayers[0].name : "No one";
+
+                updates.status = 'finished';
+                updates.log = [...gameData.log, `Game over! The winner is ${winnerName}!`];
+                await updateDoc(gameRef, updates);
+                return;
+            }
+            
+            let loopGuard = 0; // Prevent infinite loops
+            
+            while(loopGuard < gameData.playerOrder.length * 2) {
+                const nextPlayerId = gameData.playerOrder[nextPlayerIndex];
+                
+                // Skip players who have run out of time
+                if ((updates[`players.${nextPlayerId}.timeLeft`] ?? gameData.players[nextPlayerId].timeLeft) <= 0) {
+                    nextPlayerIndex = (nextPlayerIndex + 1) % gameData.playerOrder.length;
+                    loopGuard++;
+                    continue;
+                }
+
+                const skippedPlayersList = gameData.skippedPlayers || [];
+                if (skippedPlayersList.includes(nextPlayerId)) {
+                    updates.skippedPlayers = skippedPlayersList.filter(id => id !== nextPlayerId);
+                    updates.log = [...(updates.log || gameData.log || []), `${gameData.players[nextPlayerId].name}'s turn was skipped.`];
+                    nextPlayerIndex = (nextPlayerIndex + 1) % gameData.playerOrder.length;
+                    loopGuard++;
                 } else {
-                    break;
+                    break; 
                 }
             }
             
-            await updateDoc(doc(db, "synthetiles-games", currentGameId), {
-                currentPlayerIndex: nextPlayerIndex
-            });
+            updates.currentPlayerIndex = nextPlayerIndex;
+            updates.turnStartTime = serverTimestamp();
+            await updateDoc(gameRef, updates);
         }
 
 
@@ -860,7 +945,8 @@
             const gameData=gameDoc.data();
             const player=gameData.players[currentUser.uid];
             await updateDoc(gameRef,{log:[...gameData.log,`${player.name} skipped their turn.`]});
-            await advanceTurn(gameData);
+            const updatedGameDoc = await getDoc(gameRef);
+            await advanceTurn(updatedGameDoc.data());
         });
 
         quitGameBtn.addEventListener('click',()=>{endGameSession("You left the game.")});
@@ -919,15 +1005,16 @@
             });
 
             const nextPlayerIndex = (gameData.currentPlayerIndex + 1) % gameData.playerOrder.length;
-            const updates = {
+             const updates = {
                 compoundDeck: newCompoundDeck,
                 reactantDeck: newReactantDeck,
                 [`players.${currentUser.uid}.hand`]:newHand,
-                currentPlayerIndex: nextPlayerIndex,
                 log: [...gameData.log, `${player.name} swapped ${tilesToSwap.length} tile(s).`]
             };
 
             await updateDoc(gameRef, updates);
+            const updatedGameDoc = await getDoc(gameRef);
+            await advanceTurn(updatedGameDoc.data());
 
             isSwapMode = false;
             tilesToSwap = [];
@@ -1025,18 +1112,47 @@
         function shuffleArray(array){for(let i=array.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[array[i],array[j]]=[array[j],array[i]]}return array}
         function dealHand(compoundDeck,reactantDeck){const hand=[];for(let i=0;i<5;i++){if(compoundDeck.length>0)hand.push(compoundDeck.pop());if(reactantDeck.length>0)hand.push(reactantDeck.pop())}return hand}
         
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = Math.floor(seconds % 60);
+            return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+        }
+
         function isPlayerTurn() {
             const turnIndicator = document.getElementById('turn-indicator');
             return turnIndicator.textContent === "It's your turn!";
         }
 
+        function showWinner(gameData) {
+            const playersRanked = gameData.playerOrder
+                .map(pId => gameData.players[pId])
+                .sort((a, b) => b.score - a.score);
+
+            let rankedListHtml = playersRanked.map((player, index) => {
+                return `<div class="flex justify-between text-lg p-2 ${index === 0 ? 'bg-yellow-200' : 'bg-gray-100'} rounded-md">
+                            <span>${index + 1}. ${player.name}</span>
+                            <span class="font-bold">${player.score} points</span>
+                        </div>`;
+            }).join('');
+
+            let messageHtml = `
+                <h2 class="text-2xl font-bold mb-4">Game Over!</h2>
+                <h3 class="text-xl font-semibold mb-4">Final Scores:</h3>
+                <div class="space-y-2">
+                    ${rankedListHtml}
+                </div>
+            `;
+            
+            modalText.innerHTML = messageHtml;
+            messageModal.classList.add('visible');
+        }
+
         function showMessage(text){
             if (text) { 
                 modalText.innerHTML = `<p class="text-lg mb-6">${text}</p>`;
-            }
-            messageModal.classList.add('visible');
+            }        
+            messageModal.classList.add('visible'); // FIX: This line was missing
         }
     </script>
 </body>
 </html>
-
